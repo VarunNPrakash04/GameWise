@@ -1,0 +1,7 @@
+/* style.css */
+
+/* Give the board container a visible border */
+#board-container {
+    border: 1px solid #4a5568; /* A dark gray border */
+    line-height: 0; /* Prevents extra space around the canvas */
+}
