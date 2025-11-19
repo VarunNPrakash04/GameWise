@@ -186,6 +186,9 @@ let wireEndpointHelpers = []; // Visual helpers for wire endpoints
 let draggingWireFromPin = null; // Track when dragging a wire from a pin
 let tempWire = null; // Temporary wire that follows mouse during drag
 let targetPin = null; // Pin currently under cursor while dragging
+const WIRE_RADIUS = 0.045; // Thicker, more realistic wire radius
+const WIRE_RADIAL_SEGMENTS = 16;
+const WIRE_TUBULAR_SEGMENTS = 96;
 
 // HTML
 const pinLabel = document.getElementById("pinLabel");
@@ -780,19 +783,19 @@ function createTempWire(fromPin) {
     mid.y += 0.3;
     
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
-    const tubeRadius = 0.02;
-    const radialSegments = 8;
-    const tubularSegments = 64;
-    
-    const geometry = new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, false);
+    const geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
     const color = parseInt(wireColorPicker.value);
     
-    const material = new THREE.MeshStandardMaterial({
+    const material = new THREE.MeshPhysicalMaterial({
         color: color,
-        metalness: 0.3,
-        roughness: 0.7,
+        metalness: 0.1,
+        roughness: 0.35,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.2,
+        sheen: 0.25,
+        sheenColor: new THREE.Color(color),
         emissive: color,
-        emissiveIntensity: 0.2,
+        emissiveIntensity: 0.15,
         transparent: true,
         opacity: 0.7 // Slightly transparent to indicate it's temporary
     });
@@ -816,13 +819,9 @@ function updateTempWire(mousePos) {
     mid.y += 0.3;
     
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
-    const tubeRadius = 0.02;
-    const radialSegments = 8;
-    const tubularSegments = 64;
-    
     // Dispose old geometry
     tempWire.geometry.dispose();
-    tempWire.geometry = new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, false);
+    tempWire.geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
 }
 
 // DRAW CURVED WIRE (thicker using TubeGeometry)
@@ -838,19 +837,19 @@ function drawWire(pin1, pin2) {
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
     
     // Use TubeGeometry for thicker, 3D wires
-    const tubeRadius = 0.02; // Increased wire thickness
-    const radialSegments = 8;
-    const tubularSegments = 64;
-    
-    const geometry = new THREE.TubeGeometry(curve, tubularSegments, tubeRadius, radialSegments, false);
+    const geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
     const color = parseInt(wireColorPicker.value);
 
-    const material = new THREE.MeshStandardMaterial({
+    const material = new THREE.MeshPhysicalMaterial({
         color: color,
-        metalness: 0.3,
-        roughness: 0.7,
+        metalness: 0.15,
+        roughness: 0.3,
+        clearcoat: 0.65,
+        clearcoatRoughness: 0.18,
+        sheen: 0.35,
+        sheenColor: new THREE.Color(color),
         emissive: color,
-        emissiveIntensity: 0.2
+        emissiveIntensity: 0.15
     });
 
     const wire = new THREE.Mesh(geometry, material);
@@ -942,10 +941,7 @@ function updateWireGeometry(wire) {
     wire.userData.curve = newCurve;
 
     // Update tube geometry
-    const tubeRadius = 0.02;
-    const radialSegments = 8;
-    const tubularSegments = 64;
-    const newGeometry = new THREE.TubeGeometry(newCurve, tubularSegments, tubeRadius, radialSegments, false);
+    const newGeometry = new THREE.TubeGeometry(newCurve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
     
     // Dispose old geometry
     wire.geometry.dispose();
