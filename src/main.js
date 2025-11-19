@@ -186,6 +186,9 @@ let wireEndpointHelpers = []; // Visual helpers for wire endpoints
 let draggingWireFromPin = null; // Track when dragging a wire from a pin
 let tempWire = null; // Temporary wire that follows mouse during drag
 let targetPin = null; // Pin currently under cursor while dragging
+let editingWire = null; // Wire being edited (disconnected temporarily)
+let originalWireConnection = null; // Store original connection to restore if needed
+let editingWireEnd = null; // Which end is being edited: 'from' or 'to'
 const WIRE_RADIUS = 0.045; // Thicker, more realistic wire radius
 const WIRE_RADIAL_SEGMENTS = 16;
 const WIRE_TUBULAR_SEGMENTS = 96;
@@ -452,9 +455,6 @@ window.addEventListener('pointermove', (e) => {
             raycaster.ray.at(distance, mousePos3D);
         }
         
-        // Update temporary wire
-        updateTempWire(mousePos3D);
-        
         // Check if hovering over a pin
         const pinIntersect = raycaster.intersectObjects(pinObjects, true);
         
@@ -479,10 +479,27 @@ window.addEventListener('pointermove', (e) => {
                     pin.children[1].material.color.set(0x00ff00);
                 }
                 
-                // Update temp wire to point to this pin
-                const pinPos = new THREE.Vector3();
-                pin.getWorldPosition(pinPos);
-                updateTempWire(pinPos);
+                // Show pin label for target pin
+                pinLabel.style.display = "block";
+                pinLabel.style.left = e.clientX + 15 + "px";
+                pinLabel.style.top = e.clientY + 15 + "px";
+                pinLabel.innerHTML = pin.name;
+                
+                // Update wire geometry
+                if (editingWire) {
+                    // Update existing wire to point to this pin
+                    if (editingWireEnd === 'from') {
+                        editingWire.userData.fromPinObj = pin;
+                    } else {
+                        editingWire.userData.toPinObj = pin;
+                    }
+                    updateWireGeometry(editingWire);
+                } else {
+                    // Update temp wire to point to this pin
+                    const pinPos = new THREE.Vector3();
+                    pin.getWorldPosition(pinPos);
+                    updateTempWire(pinPos);
+                }
             } else {
                 // Reset target if hovering over starting pin
                 if (targetPin) {
@@ -491,6 +508,32 @@ window.addEventListener('pointermove', (e) => {
                         targetPin.children[1].material.visible = false;
                     }
                     targetPin = null;
+                }
+                pinLabel.style.display = "none";
+                
+                // Restore wire to original other pin if editing
+                if (editingWire && originalWireConnection) {
+                    // Restore the other end to its original pin
+                    if (editingWireEnd === 'from') {
+                        editingWire.userData.fromPinObj = draggingWireFromPin;
+                        editingWire.userData.toPinObj = originalWireConnection.toPin;
+                    } else {
+                        editingWire.userData.toPinObj = draggingWireFromPin;
+                        editingWire.userData.fromPinObj = originalWireConnection.fromPin;
+                    }
+                    updateWireGeometry(editingWire);
+                    
+                    // Update endpoint helpers
+                    const p1 = new THREE.Vector3();
+                    const p2 = new THREE.Vector3();
+                    editingWire.userData.fromPinObj.getWorldPosition(p1);
+                    editingWire.userData.toPinObj.getWorldPosition(p2);
+                    if (editingWire.userData.fromHelper) {
+                        editingWire.userData.fromHelper.position.copy(p1);
+                    }
+                    if (editingWire.userData.toHelper) {
+                        editingWire.userData.toHelper.position.copy(p2);
+                    }
                 }
             }
         } else {
@@ -501,6 +544,30 @@ window.addEventListener('pointermove', (e) => {
                     targetPin.children[1].material.visible = false;
                 }
                 targetPin = null;
+            }
+            pinLabel.style.display = "none";
+            
+            // Update wire geometry to follow mouse
+            if (editingWire) {
+                // Update existing wire to follow mouse
+                const otherPin = editingWireEnd === 'from' ? editingWire.userData.toPinObj : editingWire.userData.fromPinObj;
+                const p1 = new THREE.Vector3();
+                const p2 = new THREE.Vector3();
+                draggingWireFromPin.getWorldPosition(p1);
+                otherPin.getWorldPosition(p2);
+                
+                const mid = p1.clone().lerp(mousePos3D, 0.5);
+                mid.y += 0.3;
+                const curve = new THREE.QuadraticBezierCurve3(p1, mid, mousePos3D);
+                
+                // Update wire geometry
+                editingWire.userData.curve = curve;
+                const newGeometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
+                editingWire.geometry.dispose();
+                editingWire.geometry = newGeometry;
+            } else {
+                // Update temp wire to follow mouse
+                updateTempWire(mousePos3D);
             }
         }
         return;
@@ -634,9 +701,41 @@ window.addEventListener('pointerdown', (e) => {
 
     const pin = pinIntersect[0].object.parent;
 
-    // Start dragging wire from this pin
-    draggingWireFromPin = pin;
-    targetPin = null;
+    // Check if this pin already has a wire connected
+    const existingWire = wires.find(w => 
+        w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+    );
+
+    if (existingWire) {
+        // We're editing an existing wire - drag the actual wire visually
+        editingWire = existingWire;
+        editingWireEnd = existingWire.userData.fromPinObj === pin ? 'from' : 'to';
+        originalWireConnection = {
+            fromPin: existingWire.userData.fromPinObj,
+            toPin: existingWire.userData.toPinObj,
+            fromPinName: existingWire.userData.fromPin,
+            toPinName: existingWire.userData.toPin
+        };
+        
+        // Determine which end is connected to this pin
+        const otherPin = editingWireEnd === 'from' ? existingWire.userData.toPinObj : existingWire.userData.fromPinObj;
+        
+        // Start dragging from this pin (will reconnect to other pin or new pin)
+        draggingWireFromPin = pin;
+        targetPin = otherPin; // Default target is the other end of the wire
+        
+        // Don't create temp wire - we'll update the existing wire geometry directly
+    } else {
+        // New wire - start dragging from this pin
+        draggingWireFromPin = pin;
+        targetPin = null;
+        editingWire = null;
+        editingWireEnd = null;
+        originalWireConnection = null;
+        
+        // Create temporary wire that will follow mouse
+        createTempWire(pin);
+    }
     
     // Lock Arduino movement
     controls.enabled = false;
@@ -652,9 +751,6 @@ window.addEventListener('pointerdown', (e) => {
     
     // Highlight the starting pin
     pin.children[0].material.color.set(0x00aaff);
-    
-    // Create temporary wire that will follow mouse
-    createTempWire(pin);
 });
 
 // POINTER UP HANDLER - Finalize wire connection
@@ -670,10 +766,100 @@ window.addEventListener('pointerup', (e) => {
         if (pinIntersect.length > 0) {
             const endPin = pinIntersect[0].object.parent;
             
-            // Only create wire if it's a different pin
+            // Only create/update wire if it's a different pin
             if (endPin !== draggingWireFromPin) {
-                // Create final wire
-                drawWire(draggingWireFromPin, endPin);
+                if (editingWire) {
+                    // We're editing an existing wire - update it
+                    if (editingWireEnd === 'from') {
+                        // Update the fromPin
+                        editingWire.userData.fromPin = endPin.name;
+                        editingWire.userData.fromPinObj = endPin;
+                    } else {
+                        // Update the toPin
+                        editingWire.userData.toPin = endPin.name;
+                        editingWire.userData.toPinObj = endPin;
+                    }
+                    
+                    // Update wire geometry
+                    updateWireGeometry(editingWire);
+                    
+                    // Update connection map
+                    const connection = wireConnections.find(c => c.id === editingWire.userData.id);
+                    if (connection) {
+                        if (editingWireEnd === 'from') {
+                            connection.from = endPin.name;
+                        } else {
+                            connection.to = endPin.name;
+                        }
+                    }
+                    
+                    // Update endpoint helpers
+                    const p1 = new THREE.Vector3();
+                    const p2 = new THREE.Vector3();
+                    editingWire.userData.fromPinObj.getWorldPosition(p1);
+                    editingWire.userData.toPinObj.getWorldPosition(p2);
+                    if (editingWire.userData.fromHelper) {
+                        editingWire.userData.fromHelper.position.copy(p1);
+                    }
+                    if (editingWire.userData.toHelper) {
+                        editingWire.userData.toHelper.position.copy(p2);
+                    }
+                    
+                    console.log("Wire updated:", connection);
+                } else {
+                    // Create new wire
+                    drawWire(draggingWireFromPin, endPin);
+                }
+            } else {
+                // Released on same pin - restore original connection if editing
+                if (editingWire && originalWireConnection) {
+                    editingWire.userData.fromPin = originalWireConnection.fromPinName;
+                    editingWire.userData.toPin = originalWireConnection.toPinName;
+                    editingWire.userData.fromPinObj = originalWireConnection.fromPin;
+                    editingWire.userData.toPinObj = originalWireConnection.toPin;
+                    
+                    // Update wire geometry
+                    updateWireGeometry(editingWire);
+                    
+                    // Update endpoint helpers
+                    const p1 = new THREE.Vector3();
+                    const p2 = new THREE.Vector3();
+                    editingWire.userData.fromPinObj.getWorldPosition(p1);
+                    editingWire.userData.toPinObj.getWorldPosition(p2);
+                    if (editingWire.userData.fromHelper) {
+                        editingWire.userData.fromHelper.position.copy(p1);
+                    }
+                    if (editingWire.userData.toHelper) {
+                        editingWire.userData.toHelper.position.copy(p2);
+                    }
+                    
+                    console.log("Wire restored to original connection");
+                }
+            }
+        } else {
+            // Released on empty space - restore original connection if editing
+            if (editingWire && originalWireConnection) {
+                editingWire.userData.fromPin = originalWireConnection.fromPinName;
+                editingWire.userData.toPin = originalWireConnection.toPinName;
+                editingWire.userData.fromPinObj = originalWireConnection.fromPin;
+                editingWire.userData.toPinObj = originalWireConnection.toPin;
+                
+                // Update wire geometry
+                updateWireGeometry(editingWire);
+                
+                // Update endpoint helpers
+                const p1 = new THREE.Vector3();
+                const p2 = new THREE.Vector3();
+                editingWire.userData.fromPinObj.getWorldPosition(p1);
+                editingWire.userData.toPinObj.getWorldPosition(p2);
+                if (editingWire.userData.fromHelper) {
+                    editingWire.userData.fromHelper.position.copy(p1);
+                }
+                if (editingWire.userData.toHelper) {
+                    editingWire.userData.toHelper.position.copy(p2);
+                }
+                
+                console.log("Wire restored to original connection");
             }
         }
         
@@ -702,7 +888,10 @@ window.addEventListener('pointerup', (e) => {
             targetPin = null;
         }
         
+        // Reset editing state
         draggingWireFromPin = null;
+        editingWire = null;
+        originalWireConnection = null;
         
         // Re-enable Arduino movement
         controls.enabled = true;
