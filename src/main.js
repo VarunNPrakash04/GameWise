@@ -106,6 +106,18 @@ loader.load('/Arduino.glb', (gltf) => {
             );
             obj.add(helper);
 
+            // Add outline ring for hover effect
+            const outlineGeometry = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+            const outlineMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                visible: false,
+                transparent: true,
+                opacity: 0.9
+            });
+            const outline = new THREE.Mesh(outlineGeometry, outlineMaterial);
+            outline.rotation.x = Math.PI / 2; // Rotate to be perpendicular to pin
+            obj.add(outline);
+
             pinObjects.push(obj);
         }
     });
@@ -124,7 +136,13 @@ window.addEventListener('pointermove', (e) => {
     const intersect = raycaster.intersectObjects(pinObjects, true);
 
     if (!intersect.length) {
-        if (hoveredPin) hoveredPin.children[0].material.color.set(0xffffff);
+        if (hoveredPin) {
+            hoveredPin.children[0].material.color.set(0xffffff);
+            // Hide outline
+            if (hoveredPin.children[1]) {
+                hoveredPin.children[1].material.visible = false;
+            }
+        }
         hoveredPin = null;
         pinLabel.style.display = "none";
         return;
@@ -133,8 +151,18 @@ window.addEventListener('pointermove', (e) => {
     const pin = intersect[0].object.parent;
 
     if (hoveredPin !== pin) {
-        if (hoveredPin) hoveredPin.children[0].material.color.set(0xffffff);
+        if (hoveredPin) {
+            hoveredPin.children[0].material.color.set(0xffffff);
+            // Hide previous pin outline
+            if (hoveredPin.children[1]) {
+                hoveredPin.children[1].material.visible = false;
+            }
+        }
         pin.children[0].material.color.set(0xffff00);
+        // Show outline for new hovered pin
+        if (pin.children[1]) {
+            pin.children[1].material.visible = true;
+        }
     }
 
     hoveredPin = pin;
