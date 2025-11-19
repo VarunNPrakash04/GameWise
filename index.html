@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Arduino Simulator</title>
+  <title>Arduino + Breadboard Simulator</title>
 
   <style>
-    body { margin: 0; overflow: hidden; }
+    body { margin: 0; overflow: hidden; font-family: Inter, Arial, sans-serif; }
 
     /* Top UI bar */
     #uiBar {
@@ -16,6 +16,7 @@
       display: flex;
       gap: 12px; /* spacing between elements */
       z-index: 200;
+      align-items: center;
     }
 
     #addWireBtn {
@@ -29,13 +30,22 @@
     }
 
     #wireColorPicker {
-      padding: 10px;
+      padding: 8px 10px;
       background: #333;
       color: white;
       border-radius: 6px;
       border: 1px solid #555;
       font-size: 14px;
       cursor: pointer;
+    }
+
+    #status {
+      margin-left: 8px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.5);
+      color: #ddd;
+      border-radius: 6px;
+      font-size: 13px;
     }
 
     #pinLabel {
@@ -58,7 +68,7 @@
   <div id="uiBar">
     <button id="addWireBtn">Add Wire</button>
 
-    <select id="wireColorPicker">
+    <select id="wireColorPicker" title="Pick color for next wire">
       <option value="0xff0000">Red</option>
       <option value="0x00ff00">Green</option>
       <option value="0x0000ff">Blue</option>
@@ -68,6 +78,8 @@
       <option value="0xffffff">White</option>
       <option value="0x000000">Black</option>
     </select>
+
+    <div id="status">Loading models...</div>
   </div>
 
   <div id="pinLabel"></div>
