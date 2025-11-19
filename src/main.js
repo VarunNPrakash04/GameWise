@@ -268,28 +268,27 @@ loader.load('/Arduino.glb', (gltf) => {
             // Make pin meshes brighter and more distinct with visual separators
             obj.traverse((child) => {
                 if (child instanceof THREE.Mesh && child !== helper && child !== outline) {
-                    // Make pins brighter
-                    if (child.material) {
-                        const materials = Array.isArray(child.material) ? child.material : [child.material];
-                        
-                        materials.forEach((mat) => {
-                            if (mat.isMeshStandardMaterial || mat.isMeshPhongMaterial || mat.isMeshLambertMaterial) {
-                                // Force color to grey
-                                mat.color.setHex(0x808080); // Grey color
-                                
-                                // Add emissive glow to make pins stand out more
-                                mat.emissive = new THREE.Color(0x666666);
-                                mat.emissiveIntensity = 0.8;
-                                
-                                // Make pins more glossy
-                                if (mat.roughness !== undefined) {
-                                    mat.roughness = Math.max(mat.roughness * 0.6, 0.2);
-                                }
-                                
-                                mat.needsUpdate = true;
-                            }
-                        });
+                    // Force pins to be grey - replace material completely
+                    const greyMaterial = new THREE.MeshStandardMaterial({
+                        color: 0x999999, // Light grey color
+                        emissive: 0x555555,
+                        emissiveIntensity: 0.5,
+                        roughness: 0.3,
+                        metalness: 0.7,
+                        castShadow: true,
+                        receiveShadow: true
+                    });
+                    
+                    // Replace material (handle both single and array cases)
+                    if (Array.isArray(child.material)) {
+                        // Replace all materials with grey
+                        child.material = child.material.map(() => greyMaterial.clone());
+                    } else {
+                        // Single material - replace directly
+                        child.material = greyMaterial;
                     }
+                    
+                    child.material.needsUpdate = true;
                     
                     // Add white border around each pin using outline mesh technique
                     try {
