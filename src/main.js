@@ -16,13 +16,13 @@ function createLEDPlaceholder() {
         }
     };
 
-    led.position.set(0, 1, 0); // spawn in air
+    led.position.set(0, 1, 0); // spawn in air, above board
     return led;
 }
 
 function createResistorPlaceholder() {
     const geo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 16);
-    const mat = new THREE.MeshStandardMaterial({ color: "orange" });
+    const mat = new THREE.MeshStandardMaterial({ color: "yellow" });
     const resistor = new THREE.Mesh(geo, mat);
 
     resistor.rotation.z = Math.PI / 2;
@@ -35,7 +35,7 @@ function createResistorPlaceholder() {
         }
     };
 
-    resistor.position.set(0, 1, 0);
+    resistor.position.set(0, 1, 0); // spawn in air, above board
     return resistor;
 }
 
@@ -54,6 +54,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.5;
 document.body.appendChild(renderer.domElement);
+renderer.domElement.style.cursor = 'pointer';
 
 // CONTROLS
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -170,6 +171,10 @@ let hoveredPin = null;
 let wireConnections = [];
 let wireIdCounter = 0;
 
+// COMPONENT TRACKING
+let components = [];
+let selectedComponent = null;
+const MIN_COMPONENT_Y = 0.1; // Minimum Y position to keep components above Arduino board
 
 // WIRE SYSTEM
 let wireMode = false;
@@ -351,72 +356,114 @@ loader.load('/Arduino.glb', (gltf) => {
     console.log("Loaded pins:", pinObjects.map(p => p.name));
 });
 
-// HOVER PIN
+// HOVER PIN and DRAG COMPONENT
 window.addEventListener('pointermove', (e) => {
-    mouse.x = (e.clientX / innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-
+    updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
 
-    // If wire mode is off, still highlight pins
-    const intersect = raycaster.intersectObjects(pinObjects, true);
-
-    if (!intersect.length) {
-        if (hoveredPin) {
-            hoveredPin.children[0].material.color.set(0xffffff);
-            // Hide outline
-            if (hoveredPin.children[1]) {
-                hoveredPin.children[1].material.visible = false;
+    // Handle component dragging
+    if (draggingComponent && !wireMode) {
+        const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
+        if (hit) {
+            const newPos = hit.clone().add(offset);
+            // Ensure component stays above Arduino board
+            if (newPos.y < MIN_COMPONENT_Y) {
+                newPos.y = MIN_COMPONENT_Y;
             }
-        }
-        hoveredPin = null;
-        pinLabel.style.display = "none";
-        return;
-    }
-
-    const pin = intersect[0].object.parent;
-
-    if (hoveredPin !== pin) {
-        if (hoveredPin) {
-            hoveredPin.children[0].material.color.set(0xffffff);
-            // Hide previous pin outline
-            if (hoveredPin.children[1]) {
-                hoveredPin.children[1].material.visible = false;
-            }
-        }
-        pin.children[0].material.color.set(0xffff00);
-        // Show outline for new hovered pin
-        if (pin.children[1]) {
-            pin.children[1].material.visible = true;
+            draggingComponent.position.copy(newPos);
         }
     }
 
-    hoveredPin = pin;
-    pinLabel.style.display = "block";
-    pinLabel.style.left = e.clientX + 15 + "px";
-    pinLabel.style.top = e.clientY + 15 + "px";
-    pinLabel.innerHTML = pin.name;
+    // Handle pin hovering (only if not dragging)
+    if (!draggingComponent) {
+        const intersect = raycaster.intersectObjects(pinObjects, true);
+
+        if (!intersect.length) {
+            if (hoveredPin) {
+                hoveredPin.children[0].material.color.set(0xffffff);
+                // Hide outline
+                if (hoveredPin.children[1]) {
+                    hoveredPin.children[1].material.visible = false;
+                }
+            }
+            hoveredPin = null;
+            pinLabel.style.display = "none";
+            return;
+        }
+
+        const pin = intersect[0].object.parent;
+
+        if (hoveredPin !== pin) {
+            if (hoveredPin) {
+                hoveredPin.children[0].material.color.set(0xffffff);
+                // Hide previous pin outline
+                if (hoveredPin.children[1]) {
+                    hoveredPin.children[1].material.visible = false;
+                }
+            }
+            pin.children[0].material.color.set(0xffff00);
+            // Show outline for new hovered pin
+            if (pin.children[1]) {
+                pin.children[1].material.visible = true;
+            }
+        }
+
+        hoveredPin = pin;
+        pinLabel.style.display = "block";
+        pinLabel.style.left = e.clientX + 15 + "px";
+        pinLabel.style.top = e.clientY + 15 + "px";
+        pinLabel.innerHTML = pin.name;
+    }
 });
 
-// CLICK HANDLER (pin / wire selection)
-window.addEventListener('pointerdown', () => {
+// CLICK HANDLER (pin / wire selection / component dragging)
+window.addEventListener('pointerdown', (e) => {
+    updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
 
-    // 1. Check if clicked on a wire
+    // 1. Check if clicked on a component (when not in wire mode)
+    if (!wireMode) {
+        const compHit = raycaster.intersectObjects(components, true)
+            .find(x => x.object.userData?.type);
+        
+        if (compHit) {
+            // Select component for deletion and start dragging
+            deselectComponent();
+            selectedComponent = compHit.object;
+            draggingComponent = compHit.object;
+            highlightComponent(selectedComponent, true);
+            
+            // Disable OrbitControls to prevent Arduino from moving
+            controls.enabled = false;
+            
+            // Setup dragging plane
+            plane.setFromNormalAndCoplanarPoint(
+                camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+                draggingComponent.position
+            );
+            planeIntersect.copy(compHit.point);
+            offset.copy(draggingComponent.position).sub(planeIntersect);
+            return;
+        }
+    }
+
+    // 2. Check if clicked on a wire
     const wireIntersects = raycaster.intersectObjects(wires, true);
 
     if (wireIntersects.length > 0) {
         selectWire(wireIntersects[0].object);
+        deselectComponent();
         return;
     }
 
-    // 2. If clicked empty, deselect wire
+    // 3. If clicked empty, deselect wire and component
     deselectWire();
+    deselectComponent();
 
-    // 3. If wire mode OFF → done
+    // 4. If wire mode OFF → done
     if (!wireMode) return;
 
-    // 4. If wire mode ON → check pin click
+    // 5. If wire mode ON → check pin click
     const pinIntersect = raycaster.intersectObjects(pinObjects, true);
     if (!pinIntersect.length) return;
 
@@ -504,18 +551,47 @@ function deselectWire() {
 
 // DELETE WITH KEYBOARD
 window.addEventListener('keydown', (e) => {
-    if (e.key === "Delete" && selectedWire) {
-        const id = selectedWire.userData.id;
-    
-        wireConnections = wireConnections.filter(w => w.id !== id);
-        wires = wires.filter(w => w.userData.id !== id);
-    
-        scene.remove(selectedWire);
-        selectedWire = null;
-    
-        console.log("UPDATED CONNECTION MAP:", wireConnections);
+    if (e.key === "Delete") {
+        // Delete selected wire
+        if (selectedWire) {
+            const id = selectedWire.userData.id;
+        
+            wireConnections = wireConnections.filter(w => w.id !== id);
+            wires = wires.filter(w => w.userData.id !== id);
+        
+            scene.remove(selectedWire);
+            selectedWire = null;
+        
+            console.log("UPDATED CONNECTION MAP:", wireConnections);
+        }
+        
+        // Delete selected component
+        if (selectedComponent) {
+            // Remove any wires connected to this component's pins
+            const componentPins = Object.keys(selectedComponent.userData.pins || {});
+            wires = wires.filter(wire => {
+                const fromPin = wire.userData.fromPin;
+                const toPin = wire.userData.toPin;
+                const shouldKeep = !componentPins.some(pin => 
+                    fromPin.includes(pin) || toPin.includes(pin)
+                );
+                if (!shouldKeep) {
+                    scene.remove(wire);
+                    wireConnections = wireConnections.filter(w => w.id !== wire.userData.id);
+                }
+                return shouldKeep;
+            });
+            
+            // Remove component from tracking array
+            components = components.filter(c => c !== selectedComponent);
+            
+            // Remove from scene
+            scene.remove(selectedComponent);
+            selectedComponent = null;
+            
+            console.log("Component deleted");
+        }
     }
-    
 });
 
 
@@ -529,50 +605,20 @@ document.querySelectorAll(".spawn").forEach(btn => {
 
 
 //Drag and Drop
-let selectedComponent = null;
+let draggingComponent = null;
 let offset = new THREE.Vector3();
 let plane = new THREE.Plane();
 let planeIntersect = new THREE.Vector3();
 
-window.addEventListener("pointerdown", (event) => {
-    updateMouse(event);
-    raycaster.setFromCamera(mouse, camera);
-
-
-    const compHit = raycaster.intersectObjects(scene.children, true)
-        .find(x => x.object.parent?.userData?.type);
-
-    if (compHit) {
-        selectedComponent = compHit.object.parent;
-        
-        plane.setFromNormalAndCoplanarPoint(
-            camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
-            selectedComponent.position
-        );
-
-        planeIntersect.copy(compHit.point);
-        offset.copy(selectedComponent.position).sub(planeIntersect);
-
-        return;
-    }
-});
-
-window.addEventListener("pointermove", (event) => {
-    if (!selectedComponent) return;
-
-    raycaster.setFromCamera(mouse, camera);
-
-    const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
-
-    if (hit) {
-        selectedComponent.position.copy(hit.clone().add(offset));
-    }
-});
-
 window.addEventListener("pointerup", () => {
-    if (selectedComponent) {
-        snapToNearestPin(selectedComponent);  
-        selectedComponent = null;
+    if (draggingComponent) {
+        snapToNearestPin(draggingComponent);
+        // Keep selectedComponent selected for potential deletion
+        draggingComponent = null;
+    }
+    // Always re-enable OrbitControls when pointer is released
+    if (!controls.enabled) {
+        controls.enabled = true;
     }
 });
 
@@ -597,7 +643,12 @@ function snapToNearestPin(component) {
 
     if (!nearest) return;
 
-    component.position.copy(nearest.position);
+    // Snap to pin position but ensure it stays above the board
+    const snapPos = nearest.position.clone();
+    if (snapPos.y < MIN_COMPONENT_Y) {
+        snapPos.y = MIN_COMPONENT_Y;
+    }
+    component.position.copy(snapPos);
     component.userData.snappedPin = nearest.name;
 
     console.log(component.userData.type, "snapped to", nearest.name);
@@ -619,6 +670,34 @@ function animate() {
 }
 animate();
 
+// Component selection and highlighting
+function highlightComponent(component, highlight) {
+    if (!component) return;
+    
+    if (highlight) {
+        // Store original emissive color
+        if (!component.userData.originalEmissive) {
+            component.userData.originalEmissive = component.material.emissive?.clone() || new THREE.Color(0x000000);
+        }
+        // Add emissive glow to show selection
+        component.material.emissive = new THREE.Color(0x444444);
+        component.material.emissiveIntensity = 0.5;
+    } else {
+        // Restore original emissive
+        if (component.userData.originalEmissive) {
+            component.material.emissive = component.userData.originalEmissive;
+            component.material.emissiveIntensity = 0;
+        }
+    }
+}
+
+function deselectComponent() {
+    if (selectedComponent) {
+        highlightComponent(selectedComponent, false);
+        selectedComponent = null;
+    }
+}
+
 //Spawn Component
 function spawnComponent(type) {
     let obj;
@@ -626,7 +705,14 @@ function spawnComponent(type) {
     if (type === "LED") obj = createLEDPlaceholder();
     if (type === "RESISTOR") obj = createResistorPlaceholder();
 
-    scene.add(obj);
+    if (obj) {
+        scene.add(obj);
+        components.push(obj);
+        // Auto-select newly spawned component
+        deselectComponent();
+        selectedComponent = obj;
+        highlightComponent(obj, true);
+    }
 }
 
 
