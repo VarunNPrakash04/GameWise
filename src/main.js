@@ -2,6 +2,43 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+//Create Component Placeholders
+function createLEDPlaceholder() {
+    const geo = new THREE.SphereGeometry(0.15, 32, 32);
+    const mat = new THREE.MeshStandardMaterial({ color: "red" });
+    const led = new THREE.Mesh(geo, mat);
+
+    led.userData = {
+        type: "LED",
+        pins: {
+            anode: null,
+            cathode: null
+        }
+    };
+
+    led.position.set(0, 1, 0); // spawn in air, above board
+    return led;
+}
+
+function createResistorPlaceholder() {
+    const geo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 16);
+    const mat = new THREE.MeshStandardMaterial({ color: "yellow" });
+    const resistor = new THREE.Mesh(geo, mat);
+
+    resistor.rotation.z = Math.PI / 2;
+
+    resistor.userData = {
+        type: "RESISTOR",
+        pins: {
+            pin1: null,
+            pin2: null
+        }
+    };
+
+    resistor.position.set(0, 1, 0); // spawn in air, above board
+    return resistor;
+}
+
 // ----------------------
 // Scene + Renderer
 // ----------------------
@@ -14,6 +51,7 @@ camera.position.set(5, 4, 6);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+renderer.domElement.style.cursor = 'pointer';
 
 // Controls
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -36,6 +74,14 @@ let breadboardPins = []; // objects found from Breadboard model
 let allPins = [];        // combined list used for raycasting/logic
 
 let hoveredPin = null;
+
+let wireConnections = [];
+let wireIdCounter = 0;
+
+// COMPONENT TRACKING
+let components = [];
+let selectedComponent = null;
+const MIN_COMPONENT_Y = 0.1; // Minimum Y position to keep components above Arduino board
 
 // Wire system
 let wireMode = false;
@@ -60,6 +106,7 @@ addWireBtn.addEventListener("click", () => {
     addWireBtn.style.background = wireMode ? "#0066ff" : "#333";
     addWireBtn.textContent = wireMode ? "Wire Mode: ON" : "Add Wire";
     firstPin = null;
+    console.log(wireMode)
 });
 
 // ----------------------
@@ -184,138 +231,72 @@ function attachHelper(obj) {
     // if it already has children, avoid duplicating helper
     if (obj.children && obj.children.some(c => c.userData && c.userData.__isPinHelper)) return;
 
-    const helper = new THREE.Mesh(
-        new THREE.SphereGeometry(0.03),
-        new THREE.MeshBasicMaterial({ visible: false, color: 0xffffff })
-    );
-    helper.userData.__isPinHelper = true;
-    obj.add(helper);
-}
+            const helper = new THREE.Mesh(
+                new THREE.SphereGeometry(0.03),
+                new THREE.MeshBasicMaterial({ visible: false })
+            );
+            obj.add(helper);
 
-// ----------------------
-// Attempt to build breadboard groups
-// ----------------------
-const breadboardGroups = {}; // e.g. { 'row_1_left': ['BB_A1',...], ... }
-
-function buildBreadboardGroups() {
-    // try to parse names that look like ColumnLetter+RowNumber
-    const parsed = [];
-
-    for (const obj of breadboardPins) {
-        const n = obj.name.trim();
-        // try to find column letter and row number in the name
-        const m = n.match(/([A-J])\s*[_-]?\s*(\d{1,2})/i) || n.match(/([A-J])(\d{1,2})/i);
-        if (m) {
-            const col = m[1].toUpperCase();
-            const row = parseInt(m[2], 10);
-            parsed.push({ obj, col, row, name: n });
+            pinObjects.push(obj);
         }
-    }
-
-    if (parsed.length === 0) {
-        console.warn('BB-GROUPS: Could not auto-parse breadboard pin names. Provide example names if you want custom mapping.');
-        return;
-    }
-
-    // build map row -> { left: [A-E], right: [F-J] }
-    const rows = new Map();
-    parsed.forEach(p => {
-        if (!rows.has(p.row)) rows.set(p.row, []);
-        rows.get(p.row).push(p);
     });
 
-    rows.forEach((arr, rowNumber) => {
-        // left group (A-E)
-        const left = arr.filter(x => ['A','B','C','D','E'].includes(x.col)).sort((a,b)=> a.col.localeCompare(b.col)).map(x=>x.obj.name);
-        const right = arr.filter(x => ['F','G','H','I','J'].includes(x.col)).sort((a,b)=> a.col.localeCompare(b.col)).map(x=>x.obj.name);
-
-        if (left.length) breadboardGroups[`row_${rowNumber}_left`] = left;
-        if (right.length) breadboardGroups[`row_${rowNumber}_right`] = right;
-    });
-
-    console.log('BB-GROUPS created for rows:', Object.keys(breadboardGroups).length);
-    // sample log for dev
-    const sampleKeys = Object.keys(breadboardGroups).slice(0,6);
-    sampleKeys.forEach(k => console.log('BB-GROUPS sample:', k, breadboardGroups[k].slice(0,5)));
-}
-
-// ----------------------
-// Hover detection (works for both Arduino + Breadboard)
-// ----------------------
-window.addEventListener('pointermove', (e) => {
-    // update mouse
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-    // raycast against combined list if ready, otherwise only pins we have
-    const targetList = (allPins && allPins.length) ? allPins : [...arduinoPins, ...breadboardPins];
-
-    if (!targetList.length) return;
-
-    raycaster.setFromCamera(mouse, camera);
-    const intersect = raycaster.intersectObjects(targetList, true);
-
-    if (!intersect.length) {
-        if (hoveredPin) {
-            // reset helper color if exists
-            const h = hoveredPin.children.find(c=>c.userData && c.userData.__isPinHelper);
-            if (h) h.material.color.set(0xffffff);
-        }
-        hoveredPin = null;
-        pinLabel.style.display = 'none';
-        return;
-    }
-
-    const pinObject = intersect[0].object.parent; // our helper is child of the empty, so parent is empty
-    if (!pinObject) return;
-
-    // if new hovered, reset old
-    if (hoveredPin && hoveredPin !== pinObject) {
-        const oldH = hoveredPin.children.find(c=>c.userData && c.userData.__isPinHelper);
-        if (oldH) oldH.material.color.set(0xffffff);
-    }
-
-    hoveredPin = pinObject;
-
-    // highlight helper if present (yellow)
-    const helperMesh = hoveredPin.children.find(c=>c.userData && c.userData.__isPinHelper);
-    if (helperMesh) helperMesh.material.color.set(0xffff00);
-
-    // show label
-    pinLabel.style.display = 'block';
-    pinLabel.style.left = e.clientX + 15 + 'px';
-    pinLabel.style.top = e.clientY + 15 + 'px';
-    pinLabel.innerText = hoveredPin.name || '(unnamed pin)';
+    console.log("Loaded pins:", pinObjects.map(p => p.name));
 });
 
-// ----------------------
-// Click handler: select wires / create wires
-// ----------------------
-window.addEventListener('pointerdown', () => {
-    // raycast for wires first
+// HOVER PIN
+window.addEventListener('pointermove', (e) => {
+    mouse.x = (e.clientX / innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+
     raycaster.setFromCamera(mouse, camera);
 
-    // try picking wires
-    if (wires.length) {
-        const wireHits = raycaster.intersectObjects(wires, true);
-        if (wireHits.length) {
-            selectWire(wireHits[0].object);
-            return;
-        }
+    // If wire mode is off, still highlight pins
+    const intersect = raycaster.intersectObjects(pinObjects, true);
+
+    if (!intersect.length) {
+        if (hoveredPin) hoveredPin.children[0].material.color.set(0xffffff);
+        hoveredPin = null;
+        pinLabel.style.display = "none";
+        return;
     }
 
-    // else deselect wire if clicked empty space
-    deselectWire();
+    const pin = intersect[0].object.parent;
 
-    // if not in wire mode, return
+    if (hoveredPin !== pin) {
+        if (hoveredPin) hoveredPin.children[0].material.color.set(0xffffff);
+        pin.children[0].material.color.set(0xffff00);
+    }
+
+    hoveredPin = pin;
+    pinLabel.style.display = "block";
+    pinLabel.style.left = e.clientX + 15 + "px";
+    pinLabel.style.top = e.clientY + 15 + "px";
+    pinLabel.innerHTML = pin.name;
+});
+
+// CLICK HANDLER (pin / wire selection)
+window.addEventListener('pointerdown', () => {
+    raycaster.setFromCamera(mouse, camera);
+
+    // 1. Check if clicked on a wire
+    const wireIntersects = raycaster.intersectObjects(wires, true);
+
+    if (wireIntersects.length > 0) {
+        selectWire(wireIntersects[0].object);
+        return;
+    }
+
+    // 2. If clicked empty, deselect wire
+    deselectWire();
+    deselectComponent();
+
+    // 3. If wire mode OFF → done
     if (!wireMode) return;
 
-    // ensure allPins is ready
-    const targetList = (allPins && allPins.length) ? allPins : [...arduinoPins, ...breadboardPins];
-    if (!targetList.length) return;
-
-    const pinHits = raycaster.intersectObjects(targetList, true);
-    if (!pinHits.length) return;
+    // 4. If wire mode ON → check pin click
+    const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+    if (!pinIntersect.length) return;
 
     const hitPin = pinHits[0].object.parent; // the empty
     if (!hitPin) return;
@@ -357,22 +338,17 @@ function drawWire(pin1, pin2) {
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
     const points = curve.getPoints(80);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+        color: parseInt(wireColorPicker.value),
+        linewidth: 10
+    });
 
-    const color = parseInt(wireColorPicker.value);
+    const wire = new THREE.Line(geometry, material);
 
-    // use Line for now (fast); you can swap to TubeGeometry if you want 3D thick wires (more perf cost)
-    const material = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
-    const line = new THREE.Line(geometry, material);
+    wire.userData.isWire = true;
 
-    // store original color so deletion/deselection can revert
-    line.userData.originalColor = color;
-    line.userData.isWire = true;
-    line.userData.endpoints = [pin1.name || null, pin2.name || null];
-
-    scene.add(line);
-    wires.push(line);
-
-    console.log(`Wire created: ${pin1.name} ↔ ${pin2.name}`);
+    scene.add(wire);
+    wires.push(wire);
 }
 
 // ----------------------
@@ -394,22 +370,10 @@ function deselectWire() {
 }
 
 window.addEventListener('keydown', (e) => {
-    if (e.key === 'Delete' && selectedWire) {
+    if (e.key === "Delete" && selectedWire) {
         scene.remove(selectedWire);
         wires = wires.filter(w => w !== selectedWire);
         selectedWire = null;
-    }
-    if (e.key === 'Escape') {
-        // cancel wire mode / selection
-        wireMode = false;
-        addWireBtn.style.background = '#333';
-        addWireBtn.textContent = 'Add Wire';
-        if (firstPin) {
-            const h = firstPin.children.find(c=>c.userData && c.userData.__isPinHelper);
-            if (h) h.material.color.set(0xffffff);
-        }
-        firstPin = null;
-        deselectWire();
     }
 });
 
@@ -422,6 +386,52 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
+
+// Component selection and highlighting
+function highlightComponent(component, highlight) {
+    if (!component) return;
+    
+    if (highlight) {
+        // Store original emissive color
+        if (!component.userData.originalEmissive) {
+            component.userData.originalEmissive = component.material.emissive?.clone() || new THREE.Color(0x000000);
+        }
+        // Add emissive glow to show selection
+        component.material.emissive = new THREE.Color(0x444444);
+        component.material.emissiveIntensity = 0.5;
+    } else {
+        // Restore original emissive
+        if (component.userData.originalEmissive) {
+            component.material.emissive = component.userData.originalEmissive;
+            component.material.emissiveIntensity = 0;
+        }
+    }
+}
+
+function deselectComponent() {
+    if (selectedComponent) {
+        highlightComponent(selectedComponent, false);
+        selectedComponent = null;
+    }
+}
+
+//Spawn Component
+function spawnComponent(type) {
+    let obj;
+
+    if (type === "LED") obj = createLEDPlaceholder();
+    if (type === "RESISTOR") obj = createResistorPlaceholder();
+
+    if (obj) {
+        scene.add(obj);
+        components.push(obj);
+        // Auto-select newly spawned component
+        deselectComponent();
+        selectedComponent = obj;
+        highlightComponent(obj, true);
+    }
+}
+
 
 // ----------------------
 // Resize
