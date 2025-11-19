@@ -181,6 +181,14 @@ let wireMode = false;
 let firstPin = null;
 let wires = [];
 let selectedWire = null;
+let draggingWireEndpoint = null; // Track which endpoint is being dragged (fromPin or toPin)
+let wireEndpointHelpers = []; // Visual helpers for wire endpoints
+let draggingWireFromPin = null; // Track when dragging a wire from a pin
+let tempWire = null; // Temporary wire that follows mouse during drag
+let targetPin = null; // Pin currently under cursor while dragging
+const WIRE_RADIUS = 0.045; // Thicker, more realistic wire radius
+const WIRE_RADIAL_SEGMENTS = 16;
+const WIRE_TUBULAR_SEGMENTS = 96;
 
 // HTML
 const pinLabel = document.getElementById("pinLabel");
@@ -373,8 +381,133 @@ window.addEventListener('pointermove', (e) => {
         }
     }
 
+    // Handle wire endpoint dragging
+    if (draggingWireEndpoint && !wireMode) {
+        const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
+        
+        if (hit) {
+            // Check if hovering over a pin
+            const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+            
+            if (pinIntersect.length > 0) {
+                const newPin = pinIntersect[0].object.parent;
+                const wire = draggingWireEndpoint.wire;
+                const endpointType = draggingWireEndpoint.type;
+                
+                // Temporarily update to show preview
+                if (endpointType === 'from') {
+                    wire.userData.fromPinObj = newPin;
+                } else {
+                    wire.userData.toPinObj = newPin;
+                }
+                
+                // Update wire geometry for preview
+                updateWireGeometry(wire);
+                
+                // Update helper position
+                const pinPos = new THREE.Vector3();
+                newPin.getWorldPosition(pinPos);
+                draggingWireEndpoint.helper.position.copy(pinPos);
+            } else {
+                // If not over a pin, show helper at mouse position (temporary preview)
+                const previewPos = hit.clone().add(offset);
+                if (previewPos.y < MIN_COMPONENT_Y) {
+                    previewPos.y = MIN_COMPONENT_Y;
+                }
+                draggingWireEndpoint.helper.position.copy(previewPos);
+                
+                // Use original pin for wire geometry preview
+                const wire = draggingWireEndpoint.wire;
+                const endpointType = draggingWireEndpoint.type;
+                if (endpointType === 'from') {
+                    wire.userData.fromPinObj = draggingWireEndpoint.originalPin;
+                } else {
+                    wire.userData.toPinObj = draggingWireEndpoint.originalPin;
+                }
+                updateWireGeometry(wire);
+            }
+        }
+    }
+
+    // Handle wire dragging from pin
+    if (draggingWireFromPin && wireMode) {
+        // Get mouse position in 3D space (project onto a plane)
+        // Update plane if needed (in case camera moved)
+        const pinPos = new THREE.Vector3();
+        draggingWireFromPin.getWorldPosition(pinPos);
+        plane.setFromNormalAndCoplanarPoint(
+            camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+            pinPos
+        );
+        
+        const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
+        let mousePos3D;
+        
+        if (hit) {
+            mousePos3D = hit;
+        } else {
+            // Fallback: use a point in front of camera
+            const distance = 5;
+            mousePos3D = new THREE.Vector3();
+            raycaster.ray.at(distance, mousePos3D);
+        }
+        
+        // Update temporary wire
+        updateTempWire(mousePos3D);
+        
+        // Check if hovering over a pin
+        const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+        
+        if (pinIntersect.length > 0) {
+            const pin = pinIntersect[0].object.parent;
+            
+            // Don't highlight the pin we're dragging from
+            if (pin !== draggingWireFromPin) {
+                // Highlight target pin
+                if (targetPin && targetPin !== pin) {
+                    // Reset previous target pin
+                    targetPin.children[0].material.color.set(0xffffff);
+                    if (targetPin.children[1]) {
+                        targetPin.children[1].material.visible = false;
+                    }
+                }
+                
+                targetPin = pin;
+                pin.children[0].material.color.set(0x00ff00); // Green for target
+                if (pin.children[1]) {
+                    pin.children[1].material.visible = true;
+                    pin.children[1].material.color.set(0x00ff00);
+                }
+                
+                // Update temp wire to point to this pin
+                const pinPos = new THREE.Vector3();
+                pin.getWorldPosition(pinPos);
+                updateTempWire(pinPos);
+            } else {
+                // Reset target if hovering over starting pin
+                if (targetPin) {
+                    targetPin.children[0].material.color.set(0xffffff);
+                    if (targetPin.children[1]) {
+                        targetPin.children[1].material.visible = false;
+                    }
+                    targetPin = null;
+                }
+            }
+        } else {
+            // Reset target pin if not over any pin
+            if (targetPin) {
+                targetPin.children[0].material.color.set(0xffffff);
+                if (targetPin.children[1]) {
+                    targetPin.children[1].material.visible = false;
+                }
+                targetPin = null;
+            }
+        }
+        return;
+    }
+
     // Handle pin hovering (only if not dragging)
-    if (!draggingComponent) {
+    if (!draggingComponent && !draggingWireFromPin) {
         const intersect = raycaster.intersectObjects(pinObjects, true);
 
         if (!intersect.length) {
@@ -446,7 +579,40 @@ window.addEventListener('pointerdown', (e) => {
         }
     }
 
-    // 2. Check if clicked on a wire
+    // 2. Check if clicked on a wire endpoint helper (for dragging)
+    if (!wireMode) {
+        const endpointIntersects = raycaster.intersectObjects(wireEndpointHelpers, true);
+        if (endpointIntersects.length > 0) {
+            const helper = endpointIntersects[0].object;
+            const wire = helper.userData.wire;
+            selectWire(wire);
+            
+            // Get current pin position for plane setup
+            const currentPin = helper.userData.endpointType === 'from' ? wire.userData.fromPinObj : wire.userData.toPinObj;
+            const pinPos = new THREE.Vector3();
+            currentPin.getWorldPosition(pinPos);
+            
+            // Setup dragging plane
+            plane.setFromNormalAndCoplanarPoint(
+                camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+                pinPos
+            );
+            planeIntersect.copy(endpointIntersects[0].point);
+            offset.copy(pinPos).sub(planeIntersect);
+            
+            draggingWireEndpoint = {
+                wire: wire,
+                type: helper.userData.endpointType, // 'from' or 'to'
+                helper: helper,
+                originalPin: currentPin
+            };
+            deselectComponent();
+            controls.enabled = false; // Disable camera controls when dragging wire endpoint
+            return;
+        }
+    }
+
+    // 3. Check if clicked on a wire
     const wireIntersects = raycaster.intersectObjects(wires, true);
 
     if (wireIntersects.length > 0) {
@@ -455,36 +621,210 @@ window.addEventListener('pointerdown', (e) => {
         return;
     }
 
-    // 3. If clicked empty, deselect wire and component
+    // 4. If clicked empty, deselect wire and component
     deselectWire();
     deselectComponent();
 
-    // 4. If wire mode OFF → done
+    // 5. If wire mode OFF → done
     if (!wireMode) return;
 
-    // 5. If wire mode ON → check pin click
+    // 6. If wire mode ON → check pin click for drag-to-connect
     const pinIntersect = raycaster.intersectObjects(pinObjects, true);
     if (!pinIntersect.length) return;
 
     const pin = pinIntersect[0].object.parent;
 
-    // FIRST PIN
-    if (!firstPin) {
-        firstPin = pin;
-        pin.children[0].material.color.set(0x00aaff);
-        return;
-    }
-
-    // SECOND PIN
-    if (pin !== firstPin) {
-        drawWire(firstPin, pin);
-    }
-
-    firstPin.children[0].material.color.set(0xffffff);
-    firstPin = null;
+    // Start dragging wire from this pin
+    draggingWireFromPin = pin;
+    targetPin = null;
+    
+    // Lock Arduino movement
+    controls.enabled = false;
+    
+    // Setup dragging plane for temp wire
+    const pinPos = new THREE.Vector3();
+    pin.getWorldPosition(pinPos);
+    plane.setFromNormalAndCoplanarPoint(
+        camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+        pinPos
+    );
+    planeIntersect.copy(pinIntersect[0].point);
+    
+    // Highlight the starting pin
+    pin.children[0].material.color.set(0x00aaff);
+    
+    // Create temporary wire that will follow mouse
+    createTempWire(pin);
 });
 
-// DRAW CURVED WIRE
+// POINTER UP HANDLER - Finalize wire connection
+window.addEventListener('pointerup', (e) => {
+    // Handle wire dragging completion
+    if (draggingWireFromPin && wireMode) {
+        updateMouse(e);
+        raycaster.setFromCamera(mouse, camera);
+        
+        // Check if released over a pin
+        const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+        
+        if (pinIntersect.length > 0) {
+            const endPin = pinIntersect[0].object.parent;
+            
+            // Only create wire if it's a different pin
+            if (endPin !== draggingWireFromPin) {
+                // Create final wire
+                drawWire(draggingWireFromPin, endPin);
+            }
+        }
+        
+        // Clean up temporary wire
+        if (tempWire) {
+            scene.remove(tempWire);
+            tempWire.geometry.dispose();
+            tempWire.material.dispose();
+            tempWire = null;
+        }
+        
+        // Reset starting pin color
+        if (draggingWireFromPin) {
+            draggingWireFromPin.children[0].material.color.set(0xffffff);
+            if (draggingWireFromPin.children[1]) {
+                draggingWireFromPin.children[1].material.visible = false;
+            }
+        }
+        
+        // Reset target pin if any
+        if (targetPin) {
+            targetPin.children[0].material.color.set(0xffffff);
+            if (targetPin.children[1]) {
+                targetPin.children[1].material.visible = false;
+            }
+            targetPin = null;
+        }
+        
+        draggingWireFromPin = null;
+        
+        // Re-enable Arduino movement
+        controls.enabled = true;
+    }
+    
+    // Handle component dragging completion
+    if (draggingComponent) {
+        snapToNearestPin(draggingComponent);
+        // Keep selectedComponent selected for potential deletion
+        draggingComponent = null;
+    }
+    
+    // Handle wire endpoint drop
+    if (draggingWireEndpoint) {
+        const wire = draggingWireEndpoint.wire;
+        const endpointType = draggingWireEndpoint.type;
+        
+        // Check if dropped on a pin
+        updateMouse(e);
+        raycaster.setFromCamera(mouse, camera);
+        const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+        if (pinIntersect.length > 0) {
+            const newPin = pinIntersect[0].object.parent;
+            
+            // Update wire connection
+            if (endpointType === 'from') {
+                wire.userData.fromPin = newPin.name;
+                wire.userData.fromPinObj = newPin;
+            } else {
+                wire.userData.toPin = newPin.name;
+                wire.userData.toPinObj = newPin;
+            }
+            
+            // Update wire geometry
+            updateWireGeometry(wire);
+            
+            // Update connection map
+            const connection = wireConnections.find(c => c.id === wire.userData.id);
+            if (connection) {
+                if (endpointType === 'from') {
+                    connection.from = newPin.name;
+                } else {
+                    connection.to = newPin.name;
+                }
+            }
+            
+            console.log("Wire reconnected:", connection);
+        } else {
+            // If not dropped on a pin, revert to original position
+            updateWireGeometry(wire);
+        }
+        
+        draggingWireEndpoint = null;
+    }
+    
+    // Always re-enable OrbitControls when pointer is released
+    if (!controls.enabled) {
+        controls.enabled = true;
+    }
+});
+
+// Create temporary wire that follows mouse
+function createTempWire(fromPin) {
+    // Remove existing temp wire if any
+    if (tempWire) {
+        scene.remove(tempWire);
+        tempWire.geometry.dispose();
+        tempWire.material.dispose();
+    }
+
+    const p1 = new THREE.Vector3();
+    fromPin.getWorldPosition(p1);
+    
+    // Start with a point at the pin, will update in pointermove
+    const p2 = p1.clone();
+    
+    const mid = p1.clone().lerp(p2, 0.5);
+    mid.y += 0.3;
+    
+    const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+    const geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
+    const color = parseInt(wireColorPicker.value);
+    
+    const material = new THREE.MeshPhysicalMaterial({
+        color: color,
+        metalness: 0.1,
+        roughness: 0.35,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.2,
+        sheen: 0.25,
+        sheenColor: new THREE.Color(color),
+        emissive: color,
+        emissiveIntensity: 0.15,
+        transparent: true,
+        opacity: 0.7 // Slightly transparent to indicate it's temporary
+    });
+    
+    tempWire = new THREE.Mesh(geometry, material);
+    tempWire.userData.isTempWire = true;
+    scene.add(tempWire);
+}
+
+// Update temporary wire to follow mouse
+function updateTempWire(mousePos) {
+    if (!tempWire || !draggingWireFromPin) return;
+    
+    const p1 = new THREE.Vector3();
+    draggingWireFromPin.getWorldPosition(p1);
+    
+    // Use mouse position (projected onto a plane)
+    const p2 = mousePos;
+    
+    const mid = p1.clone().lerp(p2, 0.5);
+    mid.y += 0.3;
+    
+    const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+    // Dispose old geometry
+    tempWire.geometry.dispose();
+    tempWire.geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
+}
+
+// DRAW CURVED WIRE (thicker using TubeGeometry)
 function drawWire(pin1, pin2) {
     const p1 = new THREE.Vector3();
     const p2 = new THREE.Vector3();
@@ -495,17 +835,26 @@ function drawWire(pin1, pin2) {
     mid.y += 0.3;
 
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
-    const points = curve.getPoints(80);
-
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    
+    // Use TubeGeometry for thicker, 3D wires
+    const geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
     const color = parseInt(wireColorPicker.value);
 
-    const material = new THREE.LineBasicMaterial({
+    const material = new THREE.MeshPhysicalMaterial({
         color: color,
-        linewidth: 10
+        metalness: 0.15,
+        roughness: 0.3,
+        clearcoat: 0.65,
+        clearcoatRoughness: 0.18,
+        sheen: 0.35,
+        sheenColor: new THREE.Color(color),
+        emissive: color,
+        emissiveIntensity: 0.15
     });
 
-    const wire = new THREE.Line(geometry, material);
+    const wire = new THREE.Mesh(geometry, material);
+    wire.castShadow = true;
+    wire.receiveShadow = true;
 
     const wireId = wireIdCounter++;
 
@@ -514,8 +863,15 @@ function drawWire(pin1, pin2) {
         isWire: true,
         fromPin: pin1.name,
         toPin: pin2.name,
-        color: color
+        fromPinObj: pin1,
+        toPinObj: pin2,
+        color: color,
+        originalColor: color,
+        curve: curve // Store curve for updating
     };
+
+    // Create visual helpers at wire endpoints for dragging
+    createWireEndpointHelpers(wire, p1, p2);
 
     scene.add(wire);
     wires.push(wire);
@@ -530,13 +886,97 @@ function drawWire(pin1, pin2) {
     console.log("CONNECTION MAP:", wireConnections);
 }
 
+// Create visual helpers at wire endpoints
+function createWireEndpointHelpers(wire, p1, p2) {
+    // Remove old helpers if they exist
+    if (wire.userData.fromHelper) {
+        scene.remove(wire.userData.fromHelper);
+    }
+    if (wire.userData.toHelper) {
+        scene.remove(wire.userData.toHelper);
+    }
+
+    // Create sphere helpers at endpoints (only visible when wire is selected)
+    const helperGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+    const helperMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        visible: false,
+        transparent: true,
+        opacity: 0.8
+    });
+
+    const fromHelper = new THREE.Mesh(helperGeometry, helperMaterial.clone());
+    fromHelper.position.copy(p1);
+    fromHelper.userData.isWireEndpoint = true;
+    fromHelper.userData.wire = wire;
+    fromHelper.userData.endpointType = 'from';
+    scene.add(fromHelper);
+    wire.userData.fromHelper = fromHelper;
+    wireEndpointHelpers.push(fromHelper);
+
+    const toHelper = new THREE.Mesh(helperGeometry, helperMaterial.clone());
+    toHelper.position.copy(p2);
+    toHelper.userData.isWireEndpoint = true;
+    toHelper.userData.wire = wire;
+    toHelper.userData.endpointType = 'to';
+    scene.add(toHelper);
+    wire.userData.toHelper = toHelper;
+    wireEndpointHelpers.push(toHelper);
+}
+
+// Update wire geometry when endpoint is moved
+function updateWireGeometry(wire) {
+    const fromPin = wire.userData.fromPinObj;
+    const toPin = wire.userData.toPinObj;
+    
+    const p1 = new THREE.Vector3();
+    const p2 = new THREE.Vector3();
+    fromPin.getWorldPosition(p1);
+    toPin.getWorldPosition(p2);
+
+    const mid = p1.clone().lerp(p2, 0.5);
+    mid.y += 0.3;
+
+    const newCurve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+    wire.userData.curve = newCurve;
+
+    // Update tube geometry
+    const newGeometry = new THREE.TubeGeometry(newCurve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
+    
+    // Dispose old geometry
+    wire.geometry.dispose();
+    wire.geometry = newGeometry;
+
+    // Update helper positions
+    if (wire.userData.fromHelper) {
+        wire.userData.fromHelper.position.copy(p1);
+    }
+    if (wire.userData.toHelper) {
+        wire.userData.toHelper.position.copy(p2);
+    }
+}
+
 
 // WIRE SELECTION
 function selectWire(wire) {
     deselectWire();
 
     selectedWire = wire;
+    // Store original color if not already stored
+    if (!wire.userData.originalColor) {
+        wire.userData.originalColor = wire.userData.color;
+    }
     wire.material.color.set(0xffffff); // highlight white
+    wire.material.emissive.set(0xffffff);
+    wire.material.emissiveIntensity = 0.5;
+    
+    // Show endpoint helpers when wire is selected
+    if (wire.userData.fromHelper) {
+        wire.userData.fromHelper.material.visible = true;
+    }
+    if (wire.userData.toHelper) {
+        wire.userData.toHelper.material.visible = true;
+    }
 }
 
 // DESELECT
@@ -544,8 +984,21 @@ function deselectWire() {
     if (!selectedWire) return;
 
     // Revert to original color
-    selectedWire.material.color.set(selectedWire.userData.originalColor || 0xff0000);
+    const originalColor = selectedWire.userData.originalColor || selectedWire.userData.color || 0xff0000;
+    selectedWire.material.color.set(originalColor);
+    selectedWire.material.emissive.set(originalColor);
+    selectedWire.material.emissiveIntensity = 0.2;
+    
+    // Hide endpoint helpers
+    if (selectedWire.userData.fromHelper) {
+        selectedWire.userData.fromHelper.material.visible = false;
+    }
+    if (selectedWire.userData.toHelper) {
+        selectedWire.userData.toHelper.material.visible = false;
+    }
+    
     selectedWire = null;
+    draggingWireEndpoint = null;
 }
 
 // DELETE WITH KEYBOARD
@@ -555,6 +1008,20 @@ window.addEventListener('keydown', (e) => {
         if (selectedWire) {
             const id = selectedWire.userData.id;
         
+            // Remove endpoint helpers
+            if (selectedWire.userData.fromHelper) {
+                scene.remove(selectedWire.userData.fromHelper);
+                wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.fromHelper);
+            }
+            if (selectedWire.userData.toHelper) {
+                scene.remove(selectedWire.userData.toHelper);
+                wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
+            }
+            
+            // Dispose geometry
+            selectedWire.geometry.dispose();
+            selectedWire.material.dispose();
+            
             wireConnections = wireConnections.filter(w => w.id !== id);
             wires = wires.filter(w => w.userData.id !== id);
         
@@ -609,12 +1076,103 @@ let offset = new THREE.Vector3();
 let plane = new THREE.Plane();
 let planeIntersect = new THREE.Vector3();
 
-window.addEventListener("pointerup", () => {
+window.addEventListener("pointerup", (e) => {
+    // Handle wire dragging completion (drag from pin to pin)
+    if (draggingWireFromPin && wireMode) {
+        updateMouse(e);
+        raycaster.setFromCamera(mouse, camera);
+        
+        // Check if released over a pin
+        const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+        
+        if (pinIntersect.length > 0) {
+            const endPin = pinIntersect[0].object.parent;
+            
+            // Only create wire if it's a different pin
+            if (endPin !== draggingWireFromPin) {
+                // Create final wire
+                drawWire(draggingWireFromPin, endPin);
+            }
+        }
+        
+        // Clean up temporary wire
+        if (tempWire) {
+            scene.remove(tempWire);
+            tempWire.geometry.dispose();
+            tempWire.material.dispose();
+            tempWire = null;
+        }
+        
+        // Reset starting pin color
+        if (draggingWireFromPin) {
+            draggingWireFromPin.children[0].material.color.set(0xffffff);
+            if (draggingWireFromPin.children[1]) {
+                draggingWireFromPin.children[1].material.visible = false;
+            }
+        }
+        
+        // Reset target pin if any
+        if (targetPin) {
+            targetPin.children[0].material.color.set(0xffffff);
+            if (targetPin.children[1]) {
+                targetPin.children[1].material.visible = false;
+            }
+            targetPin = null;
+        }
+        
+        draggingWireFromPin = null;
+    }
+    
+    // Handle component dragging completion
     if (draggingComponent) {
         snapToNearestPin(draggingComponent);
         // Keep selectedComponent selected for potential deletion
         draggingComponent = null;
     }
+    
+    // Handle wire endpoint drop
+    if (draggingWireEndpoint) {
+        updateMouse(e);
+        raycaster.setFromCamera(mouse, camera);
+        const wire = draggingWireEndpoint.wire;
+        const endpointType = draggingWireEndpoint.type;
+        
+        // Check if dropped on a pin
+        const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+        if (pinIntersect.length > 0) {
+            const newPin = pinIntersect[0].object.parent;
+            
+            // Update wire connection
+            if (endpointType === 'from') {
+                wire.userData.fromPin = newPin.name;
+                wire.userData.fromPinObj = newPin;
+            } else {
+                wire.userData.toPin = newPin.name;
+                wire.userData.toPinObj = newPin;
+            }
+            
+            // Update wire geometry
+            updateWireGeometry(wire);
+            
+            // Update connection map
+            const connection = wireConnections.find(c => c.id === wire.userData.id);
+            if (connection) {
+                if (endpointType === 'from') {
+                    connection.from = newPin.name;
+                } else {
+                    connection.to = newPin.name;
+                }
+            }
+            
+            console.log("Wire reconnected:", connection);
+        } else {
+            // If not dropped on a pin, revert to original position
+            updateWireGeometry(wire);
+        }
+        
+        draggingWireEndpoint = null;
+    }
+    
     // Always re-enable OrbitControls when pointer is released
     if (!controls.enabled) {
         controls.enabled = true;
