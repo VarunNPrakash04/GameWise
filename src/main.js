@@ -28,6 +28,10 @@ let arduino = null;
 let pinObjects = [];
 let hoveredPin = null;
 
+let wireConnections = [];
+let wireIdCounter = 0;
+
+
 // WIRE SYSTEM
 let wireMode = false;
 let firstPin = null;
@@ -156,18 +160,38 @@ function drawWire(pin1, pin2) {
     const points = curve.getPoints(80);
 
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const color = parseInt(wireColorPicker.value);
+
     const material = new THREE.LineBasicMaterial({
-        color: parseInt(wireColorPicker.value),
+        color: color,
         linewidth: 10
     });
 
     const wire = new THREE.Line(geometry, material);
 
-    wire.userData.isWire = true;
+    const wireId = wireIdCounter++;
+
+    wire.userData = {
+        id: wireId,
+        isWire: true,
+        fromPin: pin1.name,
+        toPin: pin2.name,
+        color: color
+    };
 
     scene.add(wire);
     wires.push(wire);
+
+    wireConnections.push({
+        id: wireId,
+        from: pin1.name,
+        to: pin2.name,
+        color: color
+    });
+
+    console.log("CONNECTION MAP:", wireConnections);
 }
+
 
 // WIRE SELECTION
 function selectWire(wire) {
@@ -189,10 +213,17 @@ function deselectWire() {
 // DELETE WITH KEYBOARD
 window.addEventListener('keydown', (e) => {
     if (e.key === "Delete" && selectedWire) {
+        const id = selectedWire.userData.id;
+    
+        wireConnections = wireConnections.filter(w => w.id !== id);
+        wires = wires.filter(w => w.userData.id !== id);
+    
         scene.remove(selectedWire);
-        wires = wires.filter(w => w !== selectedWire);
         selectedWire = null;
+    
+        console.log("UPDATED CONNECTION MAP:", wireConnections);
     }
+    
 });
 
 // LOOP
