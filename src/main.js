@@ -41,21 +41,123 @@ function createResistorPlaceholder() {
 
 // SCENE SETUP
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x202020);
+scene.background = new THREE.Color(0x303030); // Brighter background
+scene.fog = new THREE.Fog(0x303030, 10, 50); // Subtle fog for depth
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(5, 4, 6);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.5;
 document.body.appendChild(renderer.domElement);
 
 // CONTROLS
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// LIGHT
-scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+// LIGHTING SETUP
+// Ambient light for base illumination
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambientLight);
+
+// Hemisphere light for natural sky/ground lighting
+const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+scene.add(hemisphereLight);
+
+// Sunlight (directional light) with shadows
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+sunLight.position.set(5, 10, 5);
+sunLight.castShadow = true;
+
+// Shadow map settings for better quality
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 50;
+sunLight.shadow.camera.left = -10;
+sunLight.shadow.camera.right = 10;
+sunLight.shadow.camera.top = 10;
+sunLight.shadow.camera.bottom = -10;
+sunLight.shadow.bias = -0.0001;
+sunLight.shadow.radius = 4;
+scene.add(sunLight);
+
+// Additional fill light for realism
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+fillLight.position.set(-5, 5, -5);
+scene.add(fillLight);
+
+// Additional top light to brighten pins
+const topLight = new THREE.DirectionalLight(0xffffff, 0.7);
+topLight.position.set(0, 15, 0);
+topLight.castShadow = false;
+scene.add(topLight);
+
+// GROUND PLANE with grid texture
+function createGridTexture(size = 512) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    
+    // Fill with dark background
+    context.fillStyle = '#252525';
+    context.fillRect(0, 0, size, size);
+    
+    // Draw grid lines
+    context.strokeStyle = '#404040';
+    context.lineWidth = 1;
+    
+    const gridSize = 32;
+    for (let i = 0; i <= size; i += gridSize) {
+        context.beginPath();
+        context.moveTo(i, 0);
+        context.lineTo(i, size);
+        context.stroke();
+        
+        context.beginPath();
+        context.moveTo(0, i);
+        context.lineTo(size, i);
+        context.stroke();
+    }
+    
+    // Add brighter center lines
+    context.strokeStyle = '#505050';
+    context.lineWidth = 1;
+    const center = size / 2;
+    context.beginPath();
+    context.moveTo(center, 0);
+    context.lineTo(center, size);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(0, center);
+    context.lineTo(size, center);
+    context.stroke();
+    
+    return new THREE.CanvasTexture(canvas);
+}
+
+const groundGeometry = new THREE.PlaneGeometry(20, 20);
+const gridTexture = createGridTexture(512);
+gridTexture.wrapS = THREE.RepeatWrapping;
+gridTexture.wrapT = THREE.RepeatWrapping;
+gridTexture.repeat.set(10, 10);
+
+const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a,
+    map: gridTexture,
+    roughness: 0.8,
+    metalness: 0.1
+});
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -2;
+ground.receiveShadow = true;
+scene.add(ground);
 
 // RAYCASTER
 const raycaster = new THREE.Raycaster();
@@ -93,9 +195,49 @@ addWireBtn.addEventListener("click", () => {
 const loader = new GLTFLoader();
 loader.load('/Arduino.glb', (gltf) => {
     arduino = gltf.scene;
+    
+    // Make materials glossy and enable shadows for all meshes
+    arduino.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+            
+            // Update material to be more glossy/realistic
+            if (obj.material) {
+                // Handle multi-material case
+                const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+                
+                obj.material = materials.map((oldMat) => {
+                    // Convert to MeshStandardMaterial if it's not already
+                    if (!oldMat.isMeshStandardMaterial) {
+                        return new THREE.MeshStandardMaterial({
+                            color: oldMat.color || 0xffffff,
+                            map: oldMat.map || null,
+                            normalMap: oldMat.normalMap || null,
+                            roughness: 0.3, // Lower roughness = more glossy
+                            metalness: 0.7, // Higher metalness = more metallic/shiny
+                            envMapIntensity: 1.0
+                        });
+                    } else {
+                        // If already StandardMaterial, just update properties
+                        oldMat.roughness = Math.min(oldMat.roughness || 0.5, 0.4);
+                        oldMat.metalness = Math.max(oldMat.metalness || 0.5, 0.6);
+                        oldMat.needsUpdate = true;
+                        return oldMat;
+                    }
+                });
+                
+                // If single material, unwrap from array
+                if (obj.material.length === 1) {
+                    obj.material = obj.material[0];
+                }
+            }
+        }
+    });
+    
     scene.add(arduino);
 
-    // Attach invisible helper sphere for every pin
+    // Attach invisible helper sphere for every pin and enhance pin visibility
     arduino.traverse((obj) => {
         if (obj.type === "Object3D" && obj.name.startsWith("Pin_")) {
             obj.userData.isPin = true;
@@ -117,6 +259,90 @@ loader.load('/Arduino.glb', (gltf) => {
             const outline = new THREE.Mesh(outlineGeometry, outlineMaterial);
             outline.rotation.x = Math.PI / 2; // Rotate to be perpendicular to pin
             obj.add(outline);
+
+            // Make pin meshes brighter and more distinct with visual separators
+            obj.traverse((child) => {
+                if (child instanceof THREE.Mesh && child !== helper && child !== outline) {
+                    // Make pins brighter
+                    if (child.material) {
+                        const materials = Array.isArray(child.material) ? child.material : [child.material];
+                        
+                        materials.forEach((mat) => {
+                            if (mat.isMeshStandardMaterial || mat.isMeshPhongMaterial || mat.isMeshLambertMaterial) {
+                                // Force color to grey
+                                mat.color.setHex(0x808080); // Grey color
+                                
+                                // Add emissive glow to make pins stand out more
+                                mat.emissive = new THREE.Color(0x666666);
+                                mat.emissiveIntensity = 0.8;
+                                
+                                // Make pins more glossy
+                                if (mat.roughness !== undefined) {
+                                    mat.roughness = Math.max(mat.roughness * 0.6, 0.2);
+                                }
+                                
+                                mat.needsUpdate = true;
+                            }
+                        });
+                    }
+                    
+                    // Add white border around each pin using outline mesh technique
+                    try {
+                        // Get world position and rotation for proper placement
+                        const worldPos = new THREE.Vector3();
+                        const worldQuat = new THREE.Quaternion();
+                        const worldScale = new THREE.Vector3();
+                        child.getWorldPosition(worldPos);
+                        child.getWorldQuaternion(worldQuat);
+                        child.getWorldScale(worldScale);
+                        
+                        // Create white outline mesh
+                        const outlineGeometry = child.geometry.clone();
+                        const outlineMaterial = new THREE.MeshBasicMaterial({
+                            color: 0xffffff,
+                            side: THREE.DoubleSide
+                        });
+                        const outlineMesh = new THREE.Mesh(outlineGeometry, outlineMaterial);
+                        
+                        // Scale up to create visible white border
+                        outlineMesh.scale.copy(worldScale).multiplyScalar(1.2);
+                        
+                        // Set world position and rotation
+                        outlineMesh.position.copy(worldPos);
+                        outlineMesh.quaternion.copy(worldQuat);
+                        
+                        // Add directly to scene (or arduino if available)
+                        if (arduino && arduino.parent === scene) {
+                            scene.add(outlineMesh);
+                        } else {
+                            child.parent.add(outlineMesh);
+                        }
+                        
+                        // Render behind the pin
+                        outlineMesh.renderOrder = -100;
+                        
+                        child.userData.outlineMesh = outlineMesh;
+                    } catch (e) {
+                        console.log("Outline creation failed:", e);
+                    }
+                    
+                    try {
+                        // Add white edge lines for border visibility (these definitely work)
+                        const edges = new THREE.EdgesGeometry(child.geometry);
+                        const edgeMaterial = new THREE.LineBasicMaterial({
+                            color: 0xffffff,
+                            depthTest: true,
+                            depthWrite: true
+                        });
+                        const edgeLines = new THREE.LineSegments(edges, edgeMaterial);
+                        edgeLines.renderOrder = 999; // Render on top
+                        child.add(edgeLines);
+                        child.userData.edgeLines = edgeLines;
+                    } catch (e) {
+                        // Skip if edges fail
+                    }
+                }
+            });
 
             pinObjects.push(obj);
         }
