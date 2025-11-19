@@ -2,6 +2,43 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+//Create Component Placeholders
+function createLEDPlaceholder() {
+    const geo = new THREE.SphereGeometry(0.15, 32, 32);
+    const mat = new THREE.MeshStandardMaterial({ color: "red" });
+    const led = new THREE.Mesh(geo, mat);
+
+    led.userData = {
+        type: "LED",
+        pins: {
+            anode: null,
+            cathode: null
+        }
+    };
+
+    led.position.set(0, 1, 0); // spawn in air
+    return led;
+}
+
+function createResistorPlaceholder() {
+    const geo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 16);
+    const mat = new THREE.MeshStandardMaterial({ color: "orange" });
+    const resistor = new THREE.Mesh(geo, mat);
+
+    resistor.rotation.z = Math.PI / 2;
+
+    resistor.userData = {
+        type: "RESISTOR",
+        pins: {
+            pin1: null,
+            pin2: null
+        }
+    };
+
+    resistor.position.set(0, 1, 0);
+    return resistor;
+}
+
 // SCENE SETUP
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x202020);
@@ -49,6 +86,7 @@ addWireBtn.addEventListener("click", () => {
     addWireBtn.style.background = wireMode ? "#0066ff" : "#333";
     addWireBtn.textContent = wireMode ? "Wire Mode: ON" : "Add Wire";
     firstPin = null;
+    console.log(wireMode)
 });
 
 // LOAD MODEL
@@ -226,6 +264,99 @@ window.addEventListener('keydown', (e) => {
     
 });
 
+
+
+document.querySelectorAll(".spawn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        spawnComponent(btn.dataset.type);
+        console.log("Spawning:", btn.dataset.type);
+    });
+});
+
+
+//Drag and Drop
+let selectedComponent = null;
+let offset = new THREE.Vector3();
+let plane = new THREE.Plane();
+let planeIntersect = new THREE.Vector3();
+
+window.addEventListener("pointerdown", (event) => {
+    updateMouse(event);
+    raycaster.setFromCamera(mouse, camera);
+
+
+    const compHit = raycaster.intersectObjects(scene.children, true)
+        .find(x => x.object.parent?.userData?.type);
+
+    if (compHit) {
+        selectedComponent = compHit.object.parent;
+        
+        plane.setFromNormalAndCoplanarPoint(
+            camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+            selectedComponent.position
+        );
+
+        planeIntersect.copy(compHit.point);
+        offset.copy(selectedComponent.position).sub(planeIntersect);
+
+        return;
+    }
+});
+
+window.addEventListener("pointermove", (event) => {
+    if (!selectedComponent) return;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
+
+    if (hit) {
+        selectedComponent.position.copy(hit.clone().add(offset));
+    }
+});
+
+window.addEventListener("pointerup", () => {
+    if (selectedComponent) {
+        snapToNearestPin(selectedComponent);  
+        selectedComponent = null;
+    }
+});
+
+//Snap to Nearest Pin
+function snapToNearestPin(component) {
+    let compPos = new THREE.Vector3();
+    component.getWorldPosition(compPos);
+
+    let nearest = null;
+    let nearestDist = Infinity;
+
+    pinObjects.forEach(pin => {
+        let pinPos = new THREE.Vector3();
+        pin.getWorldPosition(pinPos);
+
+        const dist = compPos.distanceTo(pinPos);
+        if (dist < nearestDist && dist < 0.3) { // snap radius
+            nearest = pin;
+            nearestDist = dist;
+        }
+    });
+
+    if (!nearest) return;
+
+    component.position.copy(nearest.position);
+    component.userData.snappedPin = nearest.name;
+
+    console.log(component.userData.type, "snapped to", nearest.name);
+}
+
+//Update Mouse
+function updateMouse(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+}
+
+
+
 // LOOP
 function animate() {
     requestAnimationFrame(animate);
@@ -233,6 +364,17 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
+
+//Spawn Component
+function spawnComponent(type) {
+    let obj;
+
+    if (type === "LED") obj = createLEDPlaceholder();
+    if (type === "RESISTOR") obj = createResistorPlaceholder();
+
+    scene.add(obj);
+}
+
 
 // RESIZE
 window.addEventListener('resize', () => {
