@@ -1,6 +1,114 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { initShuffle } from './Shuffle.js';
+
+// SPLASH SCREEN HANDLING
+const splashScreen = document.getElementById('splashScreen');
+const mainContent = document.getElementById('mainContent');
+const gameWiseText = document.getElementById('gameWiseText');
+let splashTimeout = null;
+let splashSkipped = false;
+let shuffleInstance = null;
+
+function hideSplash() {
+    if (splashSkipped) return;
+    splashSkipped = true;
+    
+    // Clear timeout if still running
+    if (splashTimeout) {
+        clearTimeout(splashTimeout);
+        splashTimeout = null;
+    }
+    
+    // Teardown shuffle animation if running
+    if (shuffleInstance) {
+        shuffleInstance.teardown();
+        shuffleInstance = null;
+    }
+    
+    // Hide splash screen
+    splashScreen.classList.add('hidden');
+    
+    // Show main content
+    setTimeout(() => {
+        mainContent.classList.add('visible');
+    }, 100);
+}
+
+// Initialize Shuffle animation
+function initSplashAnimation() {
+    if (!gameWiseText) return;
+    
+    // Wait for fonts to load
+    const fontsLoaded = 'fonts' in document 
+        ? document.fonts.status === 'loaded' 
+        : true;
+    
+    const loadFonts = () => {
+        if ('fonts' in document) {
+            if (document.fonts.status === 'loaded') {
+                startShuffle();
+            } else {
+                document.fonts.ready.then(() => {
+                    startShuffle();
+                });
+            }
+        } else {
+            startShuffle();
+        }
+    };
+    
+    const startShuffle = () => {
+        shuffleInstance = initShuffle(gameWiseText, {
+            shuffleDirection: 'left',
+            duration: 0.5,
+            animationMode: 'evenodd',
+            shuffleTimes: 2,
+            ease: 'power3.out',
+            stagger: 0.05,
+            respectReducedMotion: true,
+            onShuffleComplete: () => {
+                // Mark as ready after shuffle completes
+                gameWiseText.classList.add('is-ready');
+            }
+        });
+        
+        // Show subtitle after animation
+        setTimeout(() => {
+            const subtitle = document.getElementById('subtitle');
+            if (subtitle) {
+                subtitle.style.opacity = '1';
+            }
+        }, 1500);
+    };
+    
+    loadFonts();
+}
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSplashAnimation);
+} else {
+    initSplashAnimation();
+}
+
+// Skip on click anywhere
+splashScreen.addEventListener('click', () => {
+    hideSplash();
+});
+
+// Skip on Enter key
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !splashSkipped) {
+        hideSplash();
+    }
+});
+
+// Auto-hide after 5 seconds
+splashTimeout = setTimeout(() => {
+    hideSplash();
+}, 5000);
 
 //Create Component Placeholders
 function createLEDPlaceholder() {

@@ -4,9 +4,68 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Arduino Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
   <style>
     body { margin: 0; overflow: hidden; }
+
+    /* Splash Screen */
+    #splashScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      cursor: pointer;
+    }
+
+    #splashScreen.hidden {
+      display: none;
+    }
+
+    #gameWiseContainer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      margin-bottom: 40px;
+    }
+
+    #subtitle {
+      font-family: "Times New Roman", Times, serif;
+      color: #ffffff;
+      font-size: 24px;
+      opacity: 0;
+      animation: fadeIn 1s ease-out 2.5s forwards;
+      text-align: center;
+    }
+
+    @keyframes fadeIn {
+      0% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+
+    /* Hide main content initially */
+    #mainContent {
+      opacity: 0;
+      transition: opacity 0.5s ease-in;
+    }
+
+    #mainContent.visible {
+      opacity: 1;
+    }
 
     /* Top UI bar */
     #uiBar {
@@ -77,10 +136,21 @@
       background: #444;
     }
   </style>
+  <link rel="stylesheet" href="/src/Shuffle.css">
 </head>
 <body>
 
-  <!-- UI BAR -->
+  <!-- Splash Screen -->
+  <div id="splashScreen">
+    <div id="gameWiseContainer">
+      <div id="gameWiseText" class="shuffle-parent">GameWise</div>
+    </div>
+    <div id="subtitle">Learning has never been easier</div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="mainContent">
+    <!-- UI BAR -->
   <div id="uiBar">
     <button id="addWireBtn">Add Wire</button>
 
@@ -102,6 +172,7 @@
     <h3>Components</h3>
     <button class="spawn" data-type="LED">Add LED</button>
     <button class="spawn" data-type="RESISTOR">Add Resistor</button>
+  </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>
