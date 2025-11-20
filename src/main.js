@@ -1228,25 +1228,42 @@ function animate() {
 animate();
 
 // Component selection and highlighting
+// Component selection and highlighting (SAFE VERSION)
 function highlightComponent(component, highlight) {
     if (!component) return;
-    
-    if (highlight) {
-        // Store original emissive color
-        if (!component.userData.originalEmissive) {
-            component.userData.originalEmissive = component.material.emissive?.clone() || new THREE.Color(0x000000);
+
+    // Traverse all meshes inside component (breadboard has many)
+    component.traverse((obj) => {
+        if (obj.isMesh) {
+
+            // Ensure material exists
+            const mat = obj.material;
+            if (!mat) return;
+
+            if (highlight) {
+                // Save original emissive only once
+                if (!obj.userData.originalEmissive) {
+                    obj.userData.originalEmissive = mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000);
+                }
+
+                if (mat.emissive) {
+                    mat.emissive.set(0x444444);
+                    mat.emissiveIntensity = 0.5;
+                }
+            } 
+            else {
+                // Revert original emissive
+                if (obj.userData.originalEmissive && mat.emissive) {
+                    mat.emissive.copy(obj.userData.originalEmissive);
+                }
+                if (mat.emissiveIntensity !== undefined) {
+                    mat.emissiveIntensity = 0;
+                }
+            }
         }
-        // Add emissive glow to show selection
-        component.material.emissive = new THREE.Color(0x444444);
-        component.material.emissiveIntensity = 0.5;
-    } else {
-        // Restore original emissive
-        if (component.userData.originalEmissive) {
-            component.material.emissive = component.userData.originalEmissive;
-            component.material.emissiveIntensity = 0;
-        }
-    }
+    });
 }
+
 
 function deselectComponent() {
     if (selectedComponent) {
@@ -1262,10 +1279,41 @@ function spawnComponent(type) {
     if (type === "LED") obj = createLEDPlaceholder();
     if (type === "RESISTOR") obj = createResistorPlaceholder();
 
+    if (type === "BREADBOARD") {
+        loader.load('/Breadboard.glb', (gltf) => {
+            const board = gltf.scene;
+            board.scale.set(1, 1, 1);
+            board.position.set(0, 1, 0); // Spawn above ground
+
+            board.userData = {
+                type: "BREADBOARD",
+                pins: {} // You will fill pin objects later if needed
+            };
+
+            // Allow dragging
+            board.traverse(x => {
+                if (x.isMesh) {
+                    x.castShadow = true;
+                    x.receiveShadow = true;
+                }
+            });
+
+            scene.add(board);
+            components.push(board);
+
+            // Auto-select
+            deselectComponent();
+            selectedComponent = board;
+            highlightComponent(board, true);
+        });
+
+        return;
+    }
+
     if (obj) {
         scene.add(obj);
         components.push(obj);
-        // Auto-select newly spawned component
+
         deselectComponent();
         selectedComponent = obj;
         highlightComponent(obj, true);
