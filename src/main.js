@@ -1,6 +1,122 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { initShuffle } from './Shuffle.js';
+
+// SPLASH SCREEN HANDLING
+const splashScreen = document.getElementById('splashScreen');
+const mainContent = document.getElementById('mainContent');
+const gameWiseText = document.getElementById('gameWiseText');
+let splashTimeout = null;
+let splashSkipped = false;
+let shuffleInstance = null;
+
+function hideSplash() {
+    if (splashSkipped) return;
+    splashSkipped = true;
+    
+    // Clear timeout if still running
+    if (splashTimeout) {
+        clearTimeout(splashTimeout);
+        splashTimeout = null;
+    }
+    
+    // Teardown shuffle animation if running
+    if (shuffleInstance) {
+        shuffleInstance.teardown();
+        shuffleInstance = null;
+    }
+    
+    // Hide splash screen
+    splashScreen.classList.add('hidden');
+    
+    // Show main content
+    setTimeout(() => {
+        mainContent.classList.add('visible');
+    }, 100);
+}
+
+// Initialize Shuffle animation
+function initSplashAnimation() {
+    if (!gameWiseText) return;
+    
+    // Wait for fonts to load
+    const fontsLoaded = 'fonts' in document 
+        ? document.fonts.status === 'loaded' 
+        : true;
+    
+    const loadFonts = () => {
+        if ('fonts' in document) {
+            if (document.fonts.status === 'loaded') {
+                startShuffle();
+            } else {
+                document.fonts.ready.then(() => {
+                    startShuffle();
+                });
+            }
+        } else {
+            startShuffle();
+        }
+    };
+    
+    const startShuffle = () => {
+        shuffleInstance = initShuffle(gameWiseText, {
+            shuffleDirection: 'left',
+            duration: 0.5,
+            animationMode: 'evenodd',
+            shuffleTimes: 2,
+            ease: 'power3.out',
+            stagger: 0.05,
+            respectReducedMotion: true,
+            onShuffleComplete: () => {
+                // Mark as ready after shuffle completes
+                gameWiseText.classList.add('is-ready');
+                
+                // Start fade out animation after shuffle completes
+                setTimeout(() => {
+                    const gameWiseContainer = document.getElementById('gameWiseContainer');
+                    if (gameWiseContainer) {
+                        gameWiseContainer.classList.add('fading');
+                    }
+                    if (splashScreen) {
+                        splashScreen.classList.add('fading');
+                    }
+                    
+                    // Hide splash screen after fade completes
+                    setTimeout(() => {
+                        hideSplash();
+                    }, 1000); // Match transition duration
+                }, 500); // Small delay after shuffle completes
+            }
+        });
+    };
+    
+    loadFonts();
+}
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSplashAnimation);
+} else {
+    initSplashAnimation();
+}
+
+// Skip on click anywhere
+splashScreen.addEventListener('click', () => {
+    hideSplash();
+});
+
+// Skip on Enter key
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !splashSkipped) {
+        hideSplash();
+    }
+});
+
+// Auto-hide after 5 seconds
+splashTimeout = setTimeout(() => {
+    hideSplash();
+}, 5000);
 
 //Create Component Placeholders
 function createLEDPlaceholder() {
@@ -41,18 +157,17 @@ function createResistorPlaceholder() {
 
 // SCENE SETUP
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x303030); // Brighter background
-scene.fog = new THREE.Fog(0x303030, 10, 50); // Subtle fog for depth
+scene.background = new THREE.Color(0x1a1a1a); // Darker background for Material Preview mode
+scene.fog = new THREE.Fog(0x1a1a1a, 15, 60); // Subtle fog for depth
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(5, 4, 6);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = false; // Disable shadows for Material Preview mode
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.5;
+renderer.toneMappingExposure = 1.4; // Slightly higher exposure for more vibrant colors
 document.body.appendChild(renderer.domElement);
 renderer.domElement.style.cursor = 'pointer';
 
@@ -60,58 +175,61 @@ renderer.domElement.style.cursor = 'pointer';
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// LIGHTING SETUP
-// Ambient light for base illumination
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
-
-// Hemisphere light for natural sky/ground lighting
-const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+// LIGHTING SETUP - Material Preview Mode (Blender-style)
+// Strong hemisphere light for even, environment-based lighting (like Blender's Material Preview)
+// Sky color (top) and ground color (bottom) - simulating studio environment with warm tones
+const hemisphereLight = new THREE.HemisphereLight(0xfffef5, 0xe8dcc8, 1.4); // Warm white top, warm beige bottom
 scene.add(hemisphereLight);
 
-// Sunlight (directional light) with shadows
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-sunLight.position.set(5, 10, 5);
-sunLight.castShadow = true;
+// Ambient light for base fill - provides even illumination with slight warmth
+const ambientLight = new THREE.AmbientLight(0xfff8f0, 0.5); // Warm white ambient
+scene.add(ambientLight);
 
-// Shadow map settings for better quality
-sunLight.shadow.mapSize.width = 2048;
-sunLight.shadow.mapSize.height = 2048;
-sunLight.shadow.camera.near = 0.5;
-sunLight.shadow.camera.far = 50;
-sunLight.shadow.camera.left = -10;
-sunLight.shadow.camera.right = 10;
-sunLight.shadow.camera.top = 10;
-sunLight.shadow.camera.bottom = -10;
-sunLight.shadow.bias = -0.0001;
-sunLight.shadow.radius = 4;
-scene.add(sunLight);
+// Soft directional lights from multiple angles (simulating environment/studio lighting)
+// Main key light from front-right (primary illumination) - slightly warm
+const keyLight = new THREE.DirectionalLight(0xfffef5, 0.9);
+keyLight.position.set(6, 10, 6);
+keyLight.castShadow = false; // No harsh shadows in Material Preview mode
+scene.add(keyLight);
 
-// Additional fill light for realism
-const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
-fillLight.position.set(-5, 5, -5);
+// Fill light from opposite side (softens shadows) - slightly cool for contrast
+const fillLight = new THREE.DirectionalLight(0xf0f5ff, 0.6);
+fillLight.position.set(-6, 7, -6);
+fillLight.castShadow = false;
 scene.add(fillLight);
 
-// Additional top light to brighten pins
-const topLight = new THREE.DirectionalLight(0xffffff, 0.7);
+// Additional side light for even illumination (left side) - neutral warm
+const sideLight = new THREE.DirectionalLight(0xfff8f0, 0.5);
+sideLight.position.set(-10, 6, 8);
+sideLight.castShadow = false;
+scene.add(sideLight);
+
+// Top light for overall brightness (simulating overhead studio light) - warm white
+const topLight = new THREE.DirectionalLight(0xfffef5, 0.7);
 topLight.position.set(0, 15, 0);
 topLight.castShadow = false;
 scene.add(topLight);
 
-// GROUND PLANE with grid texture
+// Back light for rim lighting (adds depth to Material Preview) - neutral
+const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
+backLight.position.set(0, 8, -10);
+backLight.castShadow = false;
+scene.add(backLight);
+
+// GROUND PLANE with grid texture (very prominent - Material Preview style)
 function createGridTexture(size = 512) {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     const context = canvas.getContext('2d');
     
-    // Fill with dark background
-    context.fillStyle = '#252525';
+    // Fill with darker background for maximum contrast
+    context.fillStyle = '#0f0f0f';
     context.fillRect(0, 0, size, size);
     
-    // Draw grid lines
-    context.strokeStyle = '#404040';
-    context.lineWidth = 1;
+    // Draw very prominent grid lines (like Blender's Material Preview)
+    context.strokeStyle = '#707070'; // Much brighter grid lines
+    context.lineWidth = 2; // Thicker lines for visibility
     
     const gridSize = 32;
     for (let i = 0; i <= size; i += gridSize) {
@@ -126,9 +244,9 @@ function createGridTexture(size = 512) {
         context.stroke();
     }
     
-    // Add brighter center lines
-    context.strokeStyle = '#505050';
-    context.lineWidth = 1;
+    // Add very bright center lines for reference (like Blender)
+    context.strokeStyle = '#a0a0a0'; // Very bright center lines
+    context.lineWidth = 2.5; // Even thicker center lines
     const center = size / 2;
     context.beginPath();
     context.moveTo(center, 0);
@@ -149,15 +267,17 @@ gridTexture.wrapT = THREE.RepeatWrapping;
 gridTexture.repeat.set(10, 10);
 
 const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2a2a2a,
+    color: 0x151515, // Darker base for maximum grid contrast
     map: gridTexture,
-    roughness: 0.8,
-    metalness: 0.1
+    roughness: 0.6,
+    metalness: 0.05,
+    emissive: 0x000000,
+    emissiveIntensity: 0
 });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -2;
-ground.receiveShadow = true;
+ground.receiveShadow = false; // No shadows in Material Preview mode
 scene.add(ground);
 
 // RAYCASTER
@@ -186,6 +306,9 @@ let wireEndpointHelpers = []; // Visual helpers for wire endpoints
 let draggingWireFromPin = null; // Track when dragging a wire from a pin
 let tempWire = null; // Temporary wire that follows mouse during drag
 let targetPin = null; // Pin currently under cursor while dragging
+let editingWire = null; // Wire being edited (disconnected temporarily)
+let originalWireConnection = null; // Store original connection to restore if needed
+let editingWireEnd = null; // Which end is being edited: 'from' or 'to'
 const WIRE_RADIUS = 0.045; // Thicker, more realistic wire radius
 const WIRE_RADIAL_SEGMENTS = 16;
 const WIRE_TUBULAR_SEGMENTS = 96;
@@ -204,37 +327,110 @@ addWireBtn.addEventListener("click", () => {
     console.log(wireMode)
 });
 
+// Create environment map for Material Preview (Blender-style)
+// Using a procedural approach to simulate studio environment lighting with warm tones
+function createMaterialPreviewEnvironment() {
+    // Create a larger texture for better quality reflections
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    
+    // Create radial gradient from center (simulating studio lighting with warm tones)
+    const centerX = size / 2;
+    const centerY = size / 2;
+    const radius = size * 0.7;
+    
+    // Use warmer, more vibrant colors instead of pure greyscale
+    const gradient = context.createRadialGradient(centerX, centerY * 0.3, 0, centerX, centerY, radius);
+    gradient.addColorStop(0, '#fffef5'); // Warm white center (top area)
+    gradient.addColorStop(0.3, '#fff8e8'); // Warm light
+    gradient.addColorStop(0.6, '#f0e8d8'); // Warm mid-tone
+    gradient.addColorStop(1, '#e8dcc8'); // Warm darker edges (bottom area)
+    
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
+    
+    // Add warm colored highlights to simulate light sources (more vibrant)
+    context.fillStyle = 'rgba(255, 248, 240, 0.4)'; // Warm highlight
+    context.beginPath();
+    context.arc(centerX * 0.7, centerY * 0.2, size * 0.1, 0, Math.PI * 2);
+    context.fill();
+    
+    context.beginPath();
+    context.arc(centerX * 1.3, centerY * 0.25, size * 0.08, 0, Math.PI * 2);
+    context.fill();
+    
+    // Add subtle blue-tinted area for contrast (like sky reflection)
+    context.fillStyle = 'rgba(240, 245, 255, 0.2)';
+    context.beginPath();
+    context.arc(centerX, centerY * 0.1, size * 0.15, 0, Math.PI * 2);
+    context.fill();
+    
+    // Create texture from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.needsUpdate = true;
+    
+    return texture;
+}
+
 // LOAD MODEL
 const loader = new GLTFLoader();
 loader.load('/Arduino.glb', (gltf) => {
     arduino = gltf.scene;
     
-    // Make materials glossy and enable shadows for all meshes
+    // Create environment map for Material Preview
+    const envMap = createMaterialPreviewEnvironment();
+    
+    // Set scene environment (modern Three.js way - applies to all materials automatically)
+    scene.environment = envMap;
+    
+    // Configure materials for Material Preview mode
     arduino.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {
-            obj.castShadow = true;
-            obj.receiveShadow = true;
+            obj.castShadow = false; // No shadows in Material Preview mode
+            obj.receiveShadow = false;
             
-            // Update material to be more glossy/realistic
+            // Update material for Material Preview mode (better material preview with environment lighting)
             if (obj.material) {
                 // Handle multi-material case
                 const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
                 
                 obj.material = materials.map((oldMat) => {
+                    // Preserve original color - get it from the material or texture
+                    let originalColor = 0xffffff;
+                    if (oldMat.color) {
+                        originalColor = oldMat.color;
+                    } else if (oldMat.map) {
+                        // Try to extract color from texture if available
+                        originalColor = 0xffffff;
+                    }
+                    
                     // Convert to MeshStandardMaterial if it's not already
                     if (!oldMat.isMeshStandardMaterial) {
-                        return new THREE.MeshStandardMaterial({
-                            color: oldMat.color || 0xffffff,
-                            map: oldMat.map || null,
+                        const newMat = new THREE.MeshStandardMaterial({
+                            color: originalColor, // Preserve original color
+                            map: oldMat.map || null, // Preserve texture map
                             normalMap: oldMat.normalMap || null,
-                            roughness: 0.3, // Lower roughness = more glossy
-                            metalness: 0.7, // Higher metalness = more metallic/shiny
-                            envMapIntensity: 1.0
+                            roughness: 0.3, // Lower roughness for Material Preview (more reflective, like Blender)
+                            metalness: 0.5, // Moderate metalness for better material preview
+                            envMap: envMap, // Apply environment map for Material Preview
+                            envMapIntensity: 1.0, // Reduced to preserve material colors (was 1.6)
+                            side: THREE.FrontSide
                         });
+                        return newMat;
                     } else {
-                        // If already StandardMaterial, just update properties
-                        oldMat.roughness = Math.min(oldMat.roughness || 0.5, 0.4);
-                        oldMat.metalness = Math.max(oldMat.metalness || 0.5, 0.6);
+                        // If already StandardMaterial, adjust for Material Preview mode
+                        // Preserve original color - don't override it
+                        if (!oldMat.color) {
+                            oldMat.color = new THREE.Color(originalColor);
+                        }
+                        oldMat.roughness = Math.min(oldMat.roughness || 0.5, 0.35); // Lower for more reflection
+                        oldMat.metalness = Math.max(oldMat.metalness || 0.3, 0.4);
+                        oldMat.envMap = envMap; // Apply environment map
+                        oldMat.envMapIntensity = oldMat.envMapIntensity || 1.0; // Reduced to preserve colors
                         oldMat.needsUpdate = true;
                         return oldMat;
                     }
@@ -281,10 +477,10 @@ loader.load('/Arduino.glb', (gltf) => {
                         color: 0x999999, // Light grey color
                         emissive: 0x555555,
                         emissiveIntensity: 0.5,
-                        roughness: 0.3,
-                        metalness: 0.7,
-                        castShadow: true,
-                        receiveShadow: true
+                        roughness: 0.4, // Adjusted for Material Preview
+                        metalness: 0.6, // Adjusted for Material Preview
+                        castShadow: false, // No shadows in Material Preview mode
+                        receiveShadow: false
                     });
                     
                     // Replace material (handle both single and array cases)
@@ -452,9 +648,6 @@ window.addEventListener('pointermove', (e) => {
             raycaster.ray.at(distance, mousePos3D);
         }
         
-        // Update temporary wire
-        updateTempWire(mousePos3D);
-        
         // Check if hovering over a pin
         const pinIntersect = raycaster.intersectObjects(pinObjects, true);
         
@@ -479,10 +672,27 @@ window.addEventListener('pointermove', (e) => {
                     pin.children[1].material.color.set(0x00ff00);
                 }
                 
-                // Update temp wire to point to this pin
-                const pinPos = new THREE.Vector3();
-                pin.getWorldPosition(pinPos);
-                updateTempWire(pinPos);
+                // Show pin label for target pin
+                pinLabel.style.display = "block";
+                pinLabel.style.left = e.clientX + 15 + "px";
+                pinLabel.style.top = e.clientY + 15 + "px";
+                pinLabel.innerHTML = pin.name;
+                
+                // Update wire geometry
+                if (editingWire) {
+                    // Update existing wire to point to this pin
+                    if (editingWireEnd === 'from') {
+                        editingWire.userData.fromPinObj = pin;
+                    } else {
+                        editingWire.userData.toPinObj = pin;
+                    }
+                    updateWireGeometry(editingWire);
+                } else {
+                    // Update temp wire to point to this pin
+                    const pinPos = new THREE.Vector3();
+                    pin.getWorldPosition(pinPos);
+                    updateTempWire(pinPos);
+                }
             } else {
                 // Reset target if hovering over starting pin
                 if (targetPin) {
@@ -491,6 +701,32 @@ window.addEventListener('pointermove', (e) => {
                         targetPin.children[1].material.visible = false;
                     }
                     targetPin = null;
+                }
+                pinLabel.style.display = "none";
+                
+                // Restore wire to original other pin if editing
+                if (editingWire && originalWireConnection) {
+                    // Restore the other end to its original pin
+                    if (editingWireEnd === 'from') {
+                        editingWire.userData.fromPinObj = draggingWireFromPin;
+                        editingWire.userData.toPinObj = originalWireConnection.toPin;
+                    } else {
+                        editingWire.userData.toPinObj = draggingWireFromPin;
+                        editingWire.userData.fromPinObj = originalWireConnection.fromPin;
+                    }
+                    updateWireGeometry(editingWire);
+                    
+                    // Update endpoint helpers
+                    const p1 = new THREE.Vector3();
+                    const p2 = new THREE.Vector3();
+                    editingWire.userData.fromPinObj.getWorldPosition(p1);
+                    editingWire.userData.toPinObj.getWorldPosition(p2);
+                    if (editingWire.userData.fromHelper) {
+                        editingWire.userData.fromHelper.position.copy(p1);
+                    }
+                    if (editingWire.userData.toHelper) {
+                        editingWire.userData.toHelper.position.copy(p2);
+                    }
                 }
             }
         } else {
@@ -501,6 +737,30 @@ window.addEventListener('pointermove', (e) => {
                     targetPin.children[1].material.visible = false;
                 }
                 targetPin = null;
+            }
+            pinLabel.style.display = "none";
+            
+            // Update wire geometry to follow mouse
+            if (editingWire) {
+                // Update existing wire to follow mouse
+                const otherPin = editingWireEnd === 'from' ? editingWire.userData.toPinObj : editingWire.userData.fromPinObj;
+                const p1 = new THREE.Vector3();
+                const p2 = new THREE.Vector3();
+                draggingWireFromPin.getWorldPosition(p1);
+                otherPin.getWorldPosition(p2);
+                
+                const mid = p1.clone().lerp(mousePos3D, 0.5);
+                mid.y += 0.3;
+                const curve = new THREE.QuadraticBezierCurve3(p1, mid, mousePos3D);
+                
+                // Update wire geometry
+                editingWire.userData.curve = curve;
+                const newGeometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
+                editingWire.geometry.dispose();
+                editingWire.geometry = newGeometry;
+            } else {
+                // Update temp wire to follow mouse
+                updateTempWire(mousePos3D);
             }
         }
         return;
@@ -634,9 +894,41 @@ window.addEventListener('pointerdown', (e) => {
 
     const pin = pinIntersect[0].object.parent;
 
-    // Start dragging wire from this pin
-    draggingWireFromPin = pin;
-    targetPin = null;
+    // Check if this pin already has a wire connected
+    const existingWire = wires.find(w => 
+        w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+    );
+
+    if (existingWire) {
+        // We're editing an existing wire - drag the actual wire visually
+        editingWire = existingWire;
+        editingWireEnd = existingWire.userData.fromPinObj === pin ? 'from' : 'to';
+        originalWireConnection = {
+            fromPin: existingWire.userData.fromPinObj,
+            toPin: existingWire.userData.toPinObj,
+            fromPinName: existingWire.userData.fromPin,
+            toPinName: existingWire.userData.toPin
+        };
+        
+        // Determine which end is connected to this pin
+        const otherPin = editingWireEnd === 'from' ? existingWire.userData.toPinObj : existingWire.userData.fromPinObj;
+        
+        // Start dragging from this pin (will reconnect to other pin or new pin)
+        draggingWireFromPin = pin;
+        targetPin = otherPin; // Default target is the other end of the wire
+        
+        // Don't create temp wire - we'll update the existing wire geometry directly
+    } else {
+        // New wire - start dragging from this pin
+        draggingWireFromPin = pin;
+        targetPin = null;
+        editingWire = null;
+        editingWireEnd = null;
+        originalWireConnection = null;
+        
+        // Create temporary wire that will follow mouse
+        createTempWire(pin);
+    }
     
     // Lock Arduino movement
     controls.enabled = false;
@@ -652,9 +944,6 @@ window.addEventListener('pointerdown', (e) => {
     
     // Highlight the starting pin
     pin.children[0].material.color.set(0x00aaff);
-    
-    // Create temporary wire that will follow mouse
-    createTempWire(pin);
 });
 
 // POINTER UP HANDLER - Finalize wire connection
@@ -670,10 +959,100 @@ window.addEventListener('pointerup', (e) => {
         if (pinIntersect.length > 0) {
             const endPin = pinIntersect[0].object.parent;
             
-            // Only create wire if it's a different pin
+            // Only create/update wire if it's a different pin
             if (endPin !== draggingWireFromPin) {
-                // Create final wire
-                drawWire(draggingWireFromPin, endPin);
+                if (editingWire) {
+                    // We're editing an existing wire - update it
+                    if (editingWireEnd === 'from') {
+                        // Update the fromPin
+                        editingWire.userData.fromPin = endPin.name;
+                        editingWire.userData.fromPinObj = endPin;
+                    } else {
+                        // Update the toPin
+                        editingWire.userData.toPin = endPin.name;
+                        editingWire.userData.toPinObj = endPin;
+                    }
+                    
+                    // Update wire geometry
+                    updateWireGeometry(editingWire);
+                    
+                    // Update connection map
+                    const connection = wireConnections.find(c => c.id === editingWire.userData.id);
+                    if (connection) {
+                        if (editingWireEnd === 'from') {
+                            connection.from = endPin.name;
+                        } else {
+                            connection.to = endPin.name;
+                        }
+                    }
+                    
+                    // Update endpoint helpers
+                    const p1 = new THREE.Vector3();
+                    const p2 = new THREE.Vector3();
+                    editingWire.userData.fromPinObj.getWorldPosition(p1);
+                    editingWire.userData.toPinObj.getWorldPosition(p2);
+                    if (editingWire.userData.fromHelper) {
+                        editingWire.userData.fromHelper.position.copy(p1);
+                    }
+                    if (editingWire.userData.toHelper) {
+                        editingWire.userData.toHelper.position.copy(p2);
+                    }
+                    
+                    console.log("Wire updated:", connection);
+                } else {
+                    // Create new wire
+                    drawWire(draggingWireFromPin, endPin);
+                }
+            } else {
+                // Released on same pin - restore original connection if editing
+                if (editingWire && originalWireConnection) {
+                    editingWire.userData.fromPin = originalWireConnection.fromPinName;
+                    editingWire.userData.toPin = originalWireConnection.toPinName;
+                    editingWire.userData.fromPinObj = originalWireConnection.fromPin;
+                    editingWire.userData.toPinObj = originalWireConnection.toPin;
+                    
+                    // Update wire geometry
+                    updateWireGeometry(editingWire);
+                    
+                    // Update endpoint helpers
+                    const p1 = new THREE.Vector3();
+                    const p2 = new THREE.Vector3();
+                    editingWire.userData.fromPinObj.getWorldPosition(p1);
+                    editingWire.userData.toPinObj.getWorldPosition(p2);
+                    if (editingWire.userData.fromHelper) {
+                        editingWire.userData.fromHelper.position.copy(p1);
+                    }
+                    if (editingWire.userData.toHelper) {
+                        editingWire.userData.toHelper.position.copy(p2);
+                    }
+                    
+                    console.log("Wire restored to original connection");
+                }
+            }
+        } else {
+            // Released on empty space - restore original connection if editing
+            if (editingWire && originalWireConnection) {
+                editingWire.userData.fromPin = originalWireConnection.fromPinName;
+                editingWire.userData.toPin = originalWireConnection.toPinName;
+                editingWire.userData.fromPinObj = originalWireConnection.fromPin;
+                editingWire.userData.toPinObj = originalWireConnection.toPin;
+                
+                // Update wire geometry
+                updateWireGeometry(editingWire);
+                
+                // Update endpoint helpers
+                const p1 = new THREE.Vector3();
+                const p2 = new THREE.Vector3();
+                editingWire.userData.fromPinObj.getWorldPosition(p1);
+                editingWire.userData.toPinObj.getWorldPosition(p2);
+                if (editingWire.userData.fromHelper) {
+                    editingWire.userData.fromHelper.position.copy(p1);
+                }
+                if (editingWire.userData.toHelper) {
+                    editingWire.userData.toHelper.position.copy(p2);
+                }
+                
+                console.log("Wire restored to original connection");
             }
         }
         
@@ -702,7 +1081,10 @@ window.addEventListener('pointerup', (e) => {
             targetPin = null;
         }
         
+        // Reset editing state
         draggingWireFromPin = null;
+        editingWire = null;
+        originalWireConnection = null;
         
         // Re-enable Arduino movement
         controls.enabled = true;
@@ -853,8 +1235,8 @@ function drawWire(pin1, pin2) {
     });
 
     const wire = new THREE.Mesh(geometry, material);
-    wire.castShadow = true;
-    wire.receiveShadow = true;
+    wire.castShadow = false; // No shadows in Material Preview mode
+    wire.receiveShadow = false;
 
     const wireId = wireIdCounter++;
 
