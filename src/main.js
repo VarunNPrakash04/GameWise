@@ -380,6 +380,49 @@ function createMaterialPreviewEnvironment() {
 const loader = new GLTFLoader();
 loader.load('/Arduino.glb', (gltf) => {
     arduino = gltf.scene;
+
+// LOAD BREADBOARD MODEL
+const breadboardLoader = new GLTFLoader();
+breadboardLoader.load('/Breadboard.glb', (gltf) => {
+    const breadboard = gltf.scene;
+
+    // Position it next to the Arduino
+    breadboard.position.set(3, 0, 0);  // move right side
+    breadboard.scale.set(1, 1, 1);
+
+    scene.add(breadboard);
+
+    // Detect breadboard pins (names must start with BB_ )
+    breadboard.traverse((obj) => {
+        if (obj.type === "Object3D" && obj.name.startsWith("BB_")) {
+
+            obj.userData.isPin = true;
+
+            // Invisible helper sphere for raycast
+            const helper = new THREE.Mesh(
+                new THREE.SphereGeometry(0.03),
+                new THREE.MeshBasicMaterial({ visible: false })
+            );
+            obj.add(helper);
+
+            // Outline / hover ring
+            const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                visible: false,
+                transparent: true
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            obj.add(ring);
+
+            pinObjects.push(obj);
+        }
+    });
+
+    console.log("Breadboard pins loaded:", pinObjects.map(p => p.name));
+});
+
     
     // Create environment map for Material Preview
     const envMap = createMaterialPreviewEnvironment();
