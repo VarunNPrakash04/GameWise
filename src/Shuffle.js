@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 function splitText(element) {
     const text = element.textContent;
     const chars = [];
-    
+
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
         if (char === ' ') {
@@ -17,10 +17,10 @@ function splitText(element) {
             chars.push(span);
         }
     }
-    
+
     element.innerHTML = '';
     chars.forEach(char => element.appendChild(char));
-    
+
     return {
         chars: element.querySelectorAll('.shuffle-char'),
         revert: () => {
@@ -188,7 +188,7 @@ export function initShuffle(element, options = {}) {
         // Restore original text to the element
         element.textContent = originalText;
         element.innerHTML = originalText;
-        
+
         // Remove all wrapper elements
         wrappersRef.forEach(w => {
             if (w.parentNode) {
@@ -196,7 +196,7 @@ export function initShuffle(element, options = {}) {
             }
         });
         wrappersRef.length = 0;
-        
+
         // Ensure element is visible and properly styled
         element.style.transform = 'none';
         element.style.willChange = 'auto';
@@ -298,4 +298,3 @@ export function initShuffle(element, options = {}) {
         }
     };
 }
-
