@@ -350,6 +350,10 @@ moveBoardBtn.addEventListener("click", () => {
             addWireBtn.textContent = "Add Wire";
             firstPin = null;
         }
+
+        // Lock camera controls
+        controls.enabled = false;
+        console.log("🔒 Camera locked - Move Board mode ON");
     } else {
         moveBoardBtn.textContent = "Move Board";
         moveBoardBtn.classList.remove("active");
@@ -358,6 +362,10 @@ moveBoardBtn.addEventListener("click", () => {
         // Stop dragging
         draggingComponent = null;
         deselectComponent();
+
+        // Unlock camera controls
+        controls.enabled = true;
+        console.log("🔓 Camera unlocked - Move Board mode OFF");
     }
 });
 
@@ -934,7 +942,7 @@ window.addEventListener('pointerdown', (e) => {
                 // Calculate offset
                 const hitPoint = compHit.point;
                 planeIntersect.copy(hitPoint);
-                offset.copy(obj.position).sub(hitPoint);
+                offset.copy(obj.position).sub(planeIntersect);
 
                 controls.enabled = false;
                 return;
@@ -1261,7 +1269,7 @@ window.addEventListener('pointerup', (e) => {
     }
 
     // Always re-enable OrbitControls when pointer is released
-    if (!controls.enabled) {
+    if (!controls.enabled && !breadboardMoveMode) {
         controls.enabled = true;
     }
 });
@@ -1676,7 +1684,7 @@ window.addEventListener("pointerup", (e) => {
     }
 
     // Always re-enable OrbitControls when pointer is released
-    if (!controls.enabled) {
+    if (!controls.enabled && !breadboardMoveMode) {
         controls.enabled = true;
     }
 });
