@@ -14,22 +14,22 @@ let shuffleInstance = null;
 function hideSplash() {
     if (splashSkipped) return;
     splashSkipped = true;
-    
+
     // Clear timeout if still running
     if (splashTimeout) {
         clearTimeout(splashTimeout);
         splashTimeout = null;
     }
-    
+
     // Teardown shuffle animation if running
     if (shuffleInstance) {
         shuffleInstance.teardown();
         shuffleInstance = null;
     }
-    
+
     // Hide splash screen
     splashScreen.classList.add('hidden');
-    
+
     // Show main content
     setTimeout(() => {
         mainContent.classList.add('visible');
@@ -39,12 +39,12 @@ function hideSplash() {
 // Initialize Shuffle animation
 function initSplashAnimation() {
     if (!gameWiseText) return;
-    
+
     // Wait for fonts to load
-    const fontsLoaded = 'fonts' in document 
-        ? document.fonts.status === 'loaded' 
+    const fontsLoaded = 'fonts' in document
+        ? document.fonts.status === 'loaded'
         : true;
-    
+
     const loadFonts = () => {
         if ('fonts' in document) {
             if (document.fonts.status === 'loaded') {
@@ -58,7 +58,7 @@ function initSplashAnimation() {
             startShuffle();
         }
     };
-    
+
     const startShuffle = () => {
         shuffleInstance = initShuffle(gameWiseText, {
             shuffleDirection: 'left',
@@ -71,7 +71,7 @@ function initSplashAnimation() {
             onShuffleComplete: () => {
                 // Mark as ready after shuffle completes
                 gameWiseText.classList.add('is-ready');
-                
+
                 // Start fade out animation after shuffle completes
                 setTimeout(() => {
                     const gameWiseContainer = document.getElementById('gameWiseContainer');
@@ -81,7 +81,7 @@ function initSplashAnimation() {
                     if (splashScreen) {
                         splashScreen.classList.add('fading');
                     }
-                    
+
                     // Hide splash screen after fade completes
                     setTimeout(() => {
                         hideSplash();
@@ -90,7 +90,7 @@ function initSplashAnimation() {
             }
         });
     };
-    
+
     loadFonts();
 }
 
@@ -222,28 +222,28 @@ function createGridTexture(size = 512) {
     canvas.width = size;
     canvas.height = size;
     const context = canvas.getContext('2d');
-    
+
     // Fill with darker background for maximum contrast
     context.fillStyle = '#0f0f0f';
     context.fillRect(0, 0, size, size);
-    
+
     // Draw very prominent grid lines (like Blender's Material Preview)
     context.strokeStyle = '#707070'; // Much brighter grid lines
     context.lineWidth = 2; // Thicker lines for visibility
-    
+
     const gridSize = 32;
     for (let i = 0; i <= size; i += gridSize) {
         context.beginPath();
         context.moveTo(i, 0);
         context.lineTo(i, size);
         context.stroke();
-        
+
         context.beginPath();
         context.moveTo(0, i);
         context.lineTo(size, i);
         context.stroke();
     }
-    
+
     // Add very bright center lines for reference (like Blender)
     context.strokeStyle = '#a0a0a0'; // Very bright center lines
     context.lineWidth = 2.5; // Even thicker center lines
@@ -256,7 +256,7 @@ function createGridTexture(size = 512) {
     context.moveTo(0, center);
     context.lineTo(size, center);
     context.stroke();
-    
+
     return new THREE.CanvasTexture(canvas);
 }
 
@@ -317,6 +317,57 @@ const WIRE_TUBULAR_SEGMENTS = 96;
 const pinLabel = document.getElementById("pinLabel");
 const addWireBtn = document.getElementById("addWireBtn");
 const wireColorPicker = document.getElementById("wireColorPicker");
+const loadingOverlay = document.getElementById("loadingOverlay");
+const moveBoardBtn = document.getElementById("moveBoardBtn");
+
+let breadboardMoveMode = false;
+let breadboard = null;
+
+// TOGGLE MOVE BOARD MODE
+moveBoardBtn.addEventListener("click", () => {
+    console.log("Move Board button clicked");
+    if (!breadboard) {
+        console.error("Breadboard not found!");
+        return;
+    }
+
+    breadboardMoveMode = !breadboardMoveMode;
+    console.log("Move Mode:", breadboardMoveMode);
+
+    if (breadboardMoveMode) {
+        moveBoardBtn.textContent = "Lock Board";
+        moveBoardBtn.classList.add("active");
+        moveBoardBtn.style.background = "#0066ff";
+
+        // Deselect everything else
+        deselectComponent();
+        deselectWire();
+
+        // Disable wire mode if on
+        if (wireMode) {
+            wireMode = false;
+            addWireBtn.style.background = "#333";
+            addWireBtn.textContent = "Add Wire";
+            firstPin = null;
+        }
+
+        // Lock camera controls
+        controls.enabled = false;
+        console.log("🔒 Camera locked - Move Board mode ON");
+    } else {
+        moveBoardBtn.textContent = "Move Board";
+        moveBoardBtn.classList.remove("active");
+        moveBoardBtn.style.background = "#333";
+
+        // Stop dragging
+        draggingComponent = null;
+        deselectComponent();
+
+        // Unlock camera controls
+        controls.enabled = true;
+        console.log("🔓 Camera unlocked - Move Board mode OFF");
+    }
+});
 
 // TOGGLE WIRE MODE
 addWireBtn.addEventListener("click", () => {
@@ -336,43 +387,43 @@ function createMaterialPreviewEnvironment() {
     canvas.width = size;
     canvas.height = size;
     const context = canvas.getContext('2d');
-    
+
     // Create radial gradient from center (simulating studio lighting with warm tones)
     const centerX = size / 2;
     const centerY = size / 2;
     const radius = size * 0.7;
-    
+
     // Use warmer, more vibrant colors instead of pure greyscale
     const gradient = context.createRadialGradient(centerX, centerY * 0.3, 0, centerX, centerY, radius);
     gradient.addColorStop(0, '#fffef5'); // Warm white center (top area)
     gradient.addColorStop(0.3, '#fff8e8'); // Warm light
     gradient.addColorStop(0.6, '#f0e8d8'); // Warm mid-tone
     gradient.addColorStop(1, '#e8dcc8'); // Warm darker edges (bottom area)
-    
+
     context.fillStyle = gradient;
     context.fillRect(0, 0, size, size);
-    
+
     // Add warm colored highlights to simulate light sources (more vibrant)
     context.fillStyle = 'rgba(255, 248, 240, 0.4)'; // Warm highlight
     context.beginPath();
     context.arc(centerX * 0.7, centerY * 0.2, size * 0.1, 0, Math.PI * 2);
     context.fill();
-    
+
     context.beginPath();
     context.arc(centerX * 1.3, centerY * 0.25, size * 0.08, 0, Math.PI * 2);
     context.fill();
-    
+
     // Add subtle blue-tinted area for contrast (like sky reflection)
     context.fillStyle = 'rgba(240, 245, 255, 0.2)';
     context.beginPath();
     context.arc(centerX, centerY * 0.1, size * 0.15, 0, Math.PI * 2);
     context.fill();
-    
+
     // Create texture from canvas
     const texture = new THREE.CanvasTexture(canvas);
     texture.mapping = THREE.EquirectangularReflectionMapping;
     texture.needsUpdate = true;
-    
+
     return texture;
 }
 
@@ -380,24 +431,27 @@ function createMaterialPreviewEnvironment() {
 const loader = new GLTFLoader();
 loader.load('/Arduino.glb', (gltf) => {
     arduino = gltf.scene;
-    
+
+    // Breadboard loading moved to spawnBreadboard function
+
+
     // Create environment map for Material Preview
     const envMap = createMaterialPreviewEnvironment();
-    
+
     // Set scene environment (modern Three.js way - applies to all materials automatically)
     scene.environment = envMap;
-    
+
     // Configure materials for Material Preview mode
     arduino.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {
             obj.castShadow = false; // No shadows in Material Preview mode
             obj.receiveShadow = false;
-            
+
             // Update material for Material Preview mode (better material preview with environment lighting)
             if (obj.material) {
                 // Handle multi-material case
                 const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-                
+
                 obj.material = materials.map((oldMat) => {
                     // Preserve original color - get it from the material or texture
                     let originalColor = 0xffffff;
@@ -407,7 +461,7 @@ loader.load('/Arduino.glb', (gltf) => {
                         // Try to extract color from texture if available
                         originalColor = 0xffffff;
                     }
-                    
+
                     // Convert to MeshStandardMaterial if it's not already
                     if (!oldMat.isMeshStandardMaterial) {
                         const newMat = new THREE.MeshStandardMaterial({
@@ -435,7 +489,7 @@ loader.load('/Arduino.glb', (gltf) => {
                         return oldMat;
                     }
                 });
-                
+
                 // If single material, unwrap from array
                 if (obj.material.length === 1) {
                     obj.material = obj.material[0];
@@ -443,7 +497,7 @@ loader.load('/Arduino.glb', (gltf) => {
             }
         }
     });
-    
+
     scene.add(arduino);
 
     // Attach invisible helper sphere for every pin and enhance pin visibility
@@ -482,7 +536,7 @@ loader.load('/Arduino.glb', (gltf) => {
                         castShadow: false, // No shadows in Material Preview mode
                         receiveShadow: false
                     });
-                    
+
                     // Replace material (handle both single and array cases)
                     if (Array.isArray(child.material)) {
                         // Replace all materials with grey
@@ -491,9 +545,9 @@ loader.load('/Arduino.glb', (gltf) => {
                         // Single material - replace directly
                         child.material = greyMaterial;
                     }
-                    
+
                     child.material.needsUpdate = true;
-                    
+
                     // Add white border around each pin using outline mesh technique
                     try {
                         // Get world position and rotation for proper placement
@@ -503,7 +557,7 @@ loader.load('/Arduino.glb', (gltf) => {
                         child.getWorldPosition(worldPos);
                         child.getWorldQuaternion(worldQuat);
                         child.getWorldScale(worldScale);
-                        
+
                         // Create white outline mesh
                         const outlineGeometry = child.geometry.clone();
                         const outlineMaterial = new THREE.MeshBasicMaterial({
@@ -511,29 +565,29 @@ loader.load('/Arduino.glb', (gltf) => {
                             side: THREE.DoubleSide
                         });
                         const outlineMesh = new THREE.Mesh(outlineGeometry, outlineMaterial);
-                        
+
                         // Scale up to create visible white border
                         outlineMesh.scale.copy(worldScale).multiplyScalar(1.2);
-                        
+
                         // Set world position and rotation
                         outlineMesh.position.copy(worldPos);
                         outlineMesh.quaternion.copy(worldQuat);
-                        
+
                         // Add directly to scene (or arduino if available)
                         if (arduino && arduino.parent === scene) {
                             scene.add(outlineMesh);
                         } else {
                             child.parent.add(outlineMesh);
                         }
-                        
+
                         // Render behind the pin
                         outlineMesh.renderOrder = -100;
-                        
+
                         child.userData.outlineMesh = outlineMesh;
                     } catch (e) {
                         console.log("Outline creation failed:", e);
                     }
-                    
+
                     try {
                         // Add white edge lines for border visibility (these definitely work)
                         const edges = new THREE.EdgesGeometry(child.geometry);
@@ -565,7 +619,12 @@ window.addEventListener('pointermove', (e) => {
     raycaster.setFromCamera(mouse, camera);
 
     // Handle component dragging
-    if (draggingComponent && !wireMode) {
+    if (draggingComponent) {
+        // If dragging breadboard, ensure we are in move mode
+        if (draggingComponent.userData.type === "BREADBOARD" && !breadboardMoveMode) {
+            draggingComponent = null;
+            return;
+        }
         const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
         if (hit) {
             const newPos = hit.clone().add(offset);
@@ -574,32 +633,35 @@ window.addEventListener('pointermove', (e) => {
                 newPos.y = MIN_COMPONENT_Y;
             }
             draggingComponent.position.copy(newPos);
+
+            // Update connected wires
+            updateConnectedWires(draggingComponent);
         }
     }
 
     // Handle wire endpoint dragging
     if (draggingWireEndpoint && !wireMode) {
         const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
-        
+
         if (hit) {
             // Check if hovering over a pin
             const pinIntersect = raycaster.intersectObjects(pinObjects, true);
-            
+
             if (pinIntersect.length > 0) {
                 const newPin = pinIntersect[0].object.parent;
                 const wire = draggingWireEndpoint.wire;
                 const endpointType = draggingWireEndpoint.type;
-                
+
                 // Temporarily update to show preview
                 if (endpointType === 'from') {
                     wire.userData.fromPinObj = newPin;
                 } else {
                     wire.userData.toPinObj = newPin;
                 }
-                
+
                 // Update wire geometry for preview
                 updateWireGeometry(wire);
-                
+
                 // Update helper position
                 const pinPos = new THREE.Vector3();
                 newPin.getWorldPosition(pinPos);
@@ -611,7 +673,7 @@ window.addEventListener('pointermove', (e) => {
                     previewPos.y = MIN_COMPONENT_Y;
                 }
                 draggingWireEndpoint.helper.position.copy(previewPos);
-                
+
                 // Use original pin for wire geometry preview
                 const wire = draggingWireEndpoint.wire;
                 const endpointType = draggingWireEndpoint.type;
@@ -635,10 +697,10 @@ window.addEventListener('pointermove', (e) => {
             camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
             pinPos
         );
-        
+
         const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
         let mousePos3D;
-        
+
         if (hit) {
             mousePos3D = hit;
         } else {
@@ -647,13 +709,13 @@ window.addEventListener('pointermove', (e) => {
             mousePos3D = new THREE.Vector3();
             raycaster.ray.at(distance, mousePos3D);
         }
-        
+
         // Check if hovering over a pin
         const pinIntersect = raycaster.intersectObjects(pinObjects, true);
-        
+
         if (pinIntersect.length > 0) {
             const pin = pinIntersect[0].object.parent;
-            
+
             // Don't highlight the pin we're dragging from
             if (pin !== draggingWireFromPin) {
                 // Highlight target pin
@@ -664,20 +726,20 @@ window.addEventListener('pointermove', (e) => {
                         targetPin.children[1].material.visible = false;
                     }
                 }
-                
+
                 targetPin = pin;
                 pin.children[0].material.color.set(0x00ff00); // Green for target
                 if (pin.children[1]) {
                     pin.children[1].material.visible = true;
                     pin.children[1].material.color.set(0x00ff00);
                 }
-                
+
                 // Show pin label for target pin
                 pinLabel.style.display = "block";
                 pinLabel.style.left = e.clientX + 15 + "px";
                 pinLabel.style.top = e.clientY + 15 + "px";
                 pinLabel.innerHTML = pin.name;
-                
+
                 // Update wire geometry
                 if (editingWire) {
                     // Update existing wire to point to this pin
@@ -703,7 +765,7 @@ window.addEventListener('pointermove', (e) => {
                     targetPin = null;
                 }
                 pinLabel.style.display = "none";
-                
+
                 // Restore wire to original other pin if editing
                 if (editingWire && originalWireConnection) {
                     // Restore the other end to its original pin
@@ -715,7 +777,7 @@ window.addEventListener('pointermove', (e) => {
                         editingWire.userData.fromPinObj = originalWireConnection.fromPin;
                     }
                     updateWireGeometry(editingWire);
-                    
+
                     // Update endpoint helpers
                     const p1 = new THREE.Vector3();
                     const p2 = new THREE.Vector3();
@@ -739,7 +801,7 @@ window.addEventListener('pointermove', (e) => {
                 targetPin = null;
             }
             pinLabel.style.display = "none";
-            
+
             // Update wire geometry to follow mouse
             if (editingWire) {
                 // Update existing wire to follow mouse
@@ -748,11 +810,11 @@ window.addEventListener('pointermove', (e) => {
                 const p2 = new THREE.Vector3();
                 draggingWireFromPin.getWorldPosition(p1);
                 otherPin.getWorldPosition(p2);
-                
+
                 const mid = p1.clone().lerp(mousePos3D, 0.5);
                 mid.y += 0.3;
                 const curve = new THREE.QuadraticBezierCurve3(p1, mid, mousePos3D);
-                
+
                 // Update wire geometry
                 editingWire.userData.curve = curve;
                 const newGeometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
@@ -768,6 +830,34 @@ window.addEventListener('pointermove', (e) => {
 
     // Handle pin hovering (only if not dragging)
     if (!draggingComponent && !draggingWireFromPin) {
+        // If in breadboard move mode, don't hover pins on the breadboard
+        if (breadboardMoveMode) {
+            // We still want to hover pins on Arduino, so we need to check parent
+            // But simpler: just disable all pin hovering when moving board
+            if (hoveredPin) {
+                hoveredPin.children[0].material.color.set(0xffffff);
+                if (hoveredPin.children[1]) {
+                    hoveredPin.children[1].material.visible = false;
+                }
+                hoveredPin = null;
+                pinLabel.style.display = "none";
+            }
+
+            // Check if hovering over breadboard to show move cursor
+            const intersects = raycaster.intersectObjects(components, true);
+            const breadboardHit = intersects.find(hit => {
+                const root = findComponentRoot(hit.object);
+                return root && root.userData.type === "BREADBOARD";
+            });
+
+            if (breadboardHit) {
+                document.body.style.cursor = "move";
+            } else {
+                document.body.style.cursor = "default";
+            }
+            return;
+        }
+
         const intersect = raycaster.intersectObjects(pinObjects, true);
 
         if (!intersect.length) {
@@ -814,20 +904,58 @@ window.addEventListener('pointerdown', (e) => {
     raycaster.setFromCamera(mouse, camera);
 
     // 1. Check if clicked on a component (when not in wire mode)
-    if (!wireMode) {
-        const compHit = raycaster.intersectObjects(components, true)
-            .find(x => x.object.userData?.type);
-        
-        if (compHit) {
+    if (true) {
+        const intersects = raycaster.intersectObjects(components, true);
+        let compHit = null;
+        let rootComponent = null;
+
+        for (const hit of intersects) {
+            const root = findComponentRoot(hit.object);
+            if (root) {
+                compHit = hit;
+                rootComponent = root;
+                break;
+            }
+        }
+
+        if (rootComponent) {
+            const obj = rootComponent;
+
+            // Special handling for breadboard
+            if (obj.userData.type === "BREADBOARD") {
+                if (!breadboardMoveMode) {
+                    // If not in move mode, ignore click on breadboard body
+                    return;
+                }
+                // If in move mode, allow dragging
+                deselectComponent();
+                selectedComponent = obj;
+                draggingComponent = obj;
+                highlightComponent(obj, true);
+
+                // Setup dragging plane
+                plane.setFromNormalAndCoplanarPoint(
+                    camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+                    obj.position
+                );
+
+                // Calculate offset
+                const hitPoint = compHit.point;
+                planeIntersect.copy(hitPoint);
+                offset.copy(obj.position).sub(planeIntersect);
+
+                controls.enabled = false;
+                return;
+            }
             // Select component for deletion and start dragging
             deselectComponent();
             selectedComponent = compHit.object;
             draggingComponent = compHit.object;
             highlightComponent(selectedComponent, true);
-            
+
             // Disable OrbitControls to prevent Arduino from moving
             controls.enabled = false;
-            
+
             // Setup dragging plane
             plane.setFromNormalAndCoplanarPoint(
                 camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
@@ -846,12 +974,12 @@ window.addEventListener('pointerdown', (e) => {
             const helper = endpointIntersects[0].object;
             const wire = helper.userData.wire;
             selectWire(wire);
-            
+
             // Get current pin position for plane setup
             const currentPin = helper.userData.endpointType === 'from' ? wire.userData.fromPinObj : wire.userData.toPinObj;
             const pinPos = new THREE.Vector3();
             currentPin.getWorldPosition(pinPos);
-            
+
             // Setup dragging plane
             plane.setFromNormalAndCoplanarPoint(
                 camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
@@ -859,7 +987,7 @@ window.addEventListener('pointerdown', (e) => {
             );
             planeIntersect.copy(endpointIntersects[0].point);
             offset.copy(pinPos).sub(planeIntersect);
-            
+
             draggingWireEndpoint = {
                 wire: wire,
                 type: helper.userData.endpointType, // 'from' or 'to'
@@ -895,7 +1023,7 @@ window.addEventListener('pointerdown', (e) => {
     const pin = pinIntersect[0].object.parent;
 
     // Check if this pin already has a wire connected
-    const existingWire = wires.find(w => 
+    const existingWire = wires.find(w =>
         w.userData.fromPinObj === pin || w.userData.toPinObj === pin
     );
 
@@ -909,14 +1037,14 @@ window.addEventListener('pointerdown', (e) => {
             fromPinName: existingWire.userData.fromPin,
             toPinName: existingWire.userData.toPin
         };
-        
+
         // Determine which end is connected to this pin
         const otherPin = editingWireEnd === 'from' ? existingWire.userData.toPinObj : existingWire.userData.fromPinObj;
-        
+
         // Start dragging from this pin (will reconnect to other pin or new pin)
         draggingWireFromPin = pin;
         targetPin = otherPin; // Default target is the other end of the wire
-        
+
         // Don't create temp wire - we'll update the existing wire geometry directly
     } else {
         // New wire - start dragging from this pin
@@ -925,14 +1053,14 @@ window.addEventListener('pointerdown', (e) => {
         editingWire = null;
         editingWireEnd = null;
         originalWireConnection = null;
-        
+
         // Create temporary wire that will follow mouse
         createTempWire(pin);
     }
-    
+
     // Lock Arduino movement
     controls.enabled = false;
-    
+
     // Setup dragging plane for temp wire
     const pinPos = new THREE.Vector3();
     pin.getWorldPosition(pinPos);
@@ -941,7 +1069,7 @@ window.addEventListener('pointerdown', (e) => {
         pinPos
     );
     planeIntersect.copy(pinIntersect[0].point);
-    
+
     // Highlight the starting pin
     pin.children[0].material.color.set(0x00aaff);
 });
@@ -952,13 +1080,13 @@ window.addEventListener('pointerup', (e) => {
     if (draggingWireFromPin && wireMode) {
         updateMouse(e);
         raycaster.setFromCamera(mouse, camera);
-        
+
         // Check if released over a pin
         const pinIntersect = raycaster.intersectObjects(pinObjects, true);
-        
+
         if (pinIntersect.length > 0) {
             const endPin = pinIntersect[0].object.parent;
-            
+
             // Only create/update wire if it's a different pin
             if (endPin !== draggingWireFromPin) {
                 if (editingWire) {
@@ -972,10 +1100,10 @@ window.addEventListener('pointerup', (e) => {
                         editingWire.userData.toPin = endPin.name;
                         editingWire.userData.toPinObj = endPin;
                     }
-                    
+
                     // Update wire geometry
                     updateWireGeometry(editingWire);
-                    
+
                     // Update connection map
                     const connection = wireConnections.find(c => c.id === editingWire.userData.id);
                     if (connection) {
@@ -985,7 +1113,7 @@ window.addEventListener('pointerup', (e) => {
                             connection.to = endPin.name;
                         }
                     }
-                    
+
                     // Update endpoint helpers
                     const p1 = new THREE.Vector3();
                     const p2 = new THREE.Vector3();
@@ -997,7 +1125,7 @@ window.addEventListener('pointerup', (e) => {
                     if (editingWire.userData.toHelper) {
                         editingWire.userData.toHelper.position.copy(p2);
                     }
-                    
+
                     console.log("Wire updated:", connection);
                 } else {
                     // Create new wire
@@ -1010,10 +1138,10 @@ window.addEventListener('pointerup', (e) => {
                     editingWire.userData.toPin = originalWireConnection.toPinName;
                     editingWire.userData.fromPinObj = originalWireConnection.fromPin;
                     editingWire.userData.toPinObj = originalWireConnection.toPin;
-                    
+
                     // Update wire geometry
                     updateWireGeometry(editingWire);
-                    
+
                     // Update endpoint helpers
                     const p1 = new THREE.Vector3();
                     const p2 = new THREE.Vector3();
@@ -1025,7 +1153,7 @@ window.addEventListener('pointerup', (e) => {
                     if (editingWire.userData.toHelper) {
                         editingWire.userData.toHelper.position.copy(p2);
                     }
-                    
+
                     console.log("Wire restored to original connection");
                 }
             }
@@ -1036,10 +1164,10 @@ window.addEventListener('pointerup', (e) => {
                 editingWire.userData.toPin = originalWireConnection.toPinName;
                 editingWire.userData.fromPinObj = originalWireConnection.fromPin;
                 editingWire.userData.toPinObj = originalWireConnection.toPin;
-                
+
                 // Update wire geometry
                 updateWireGeometry(editingWire);
-                
+
                 // Update endpoint helpers
                 const p1 = new THREE.Vector3();
                 const p2 = new THREE.Vector3();
@@ -1051,11 +1179,11 @@ window.addEventListener('pointerup', (e) => {
                 if (editingWire.userData.toHelper) {
                     editingWire.userData.toHelper.position.copy(p2);
                 }
-                
+
                 console.log("Wire restored to original connection");
             }
         }
-        
+
         // Clean up temporary wire
         if (tempWire) {
             scene.remove(tempWire);
@@ -1063,7 +1191,7 @@ window.addEventListener('pointerup', (e) => {
             tempWire.material.dispose();
             tempWire = null;
         }
-        
+
         // Reset starting pin color
         if (draggingWireFromPin) {
             draggingWireFromPin.children[0].material.color.set(0xffffff);
@@ -1071,7 +1199,7 @@ window.addEventListener('pointerup', (e) => {
                 draggingWireFromPin.children[1].material.visible = false;
             }
         }
-        
+
         // Reset target pin if any
         if (targetPin) {
             targetPin.children[0].material.color.set(0xffffff);
@@ -1080,35 +1208,35 @@ window.addEventListener('pointerup', (e) => {
             }
             targetPin = null;
         }
-        
+
         // Reset editing state
         draggingWireFromPin = null;
         editingWire = null;
         originalWireConnection = null;
-        
+
         // Re-enable Arduino movement
         controls.enabled = true;
     }
-    
+
     // Handle component dragging completion
     if (draggingComponent) {
         snapToNearestPin(draggingComponent);
         // Keep selectedComponent selected for potential deletion
         draggingComponent = null;
     }
-    
+
     // Handle wire endpoint drop
     if (draggingWireEndpoint) {
         const wire = draggingWireEndpoint.wire;
         const endpointType = draggingWireEndpoint.type;
-        
+
         // Check if dropped on a pin
         updateMouse(e);
         raycaster.setFromCamera(mouse, camera);
         const pinIntersect = raycaster.intersectObjects(pinObjects, true);
         if (pinIntersect.length > 0) {
             const newPin = pinIntersect[0].object.parent;
-            
+
             // Update wire connection
             if (endpointType === 'from') {
                 wire.userData.fromPin = newPin.name;
@@ -1117,10 +1245,10 @@ window.addEventListener('pointerup', (e) => {
                 wire.userData.toPin = newPin.name;
                 wire.userData.toPinObj = newPin;
             }
-            
+
             // Update wire geometry
             updateWireGeometry(wire);
-            
+
             // Update connection map
             const connection = wireConnections.find(c => c.id === wire.userData.id);
             if (connection) {
@@ -1130,18 +1258,18 @@ window.addEventListener('pointerup', (e) => {
                     connection.to = newPin.name;
                 }
             }
-            
+
             console.log("Wire reconnected:", connection);
         } else {
             // If not dropped on a pin, revert to original position
             updateWireGeometry(wire);
         }
-        
+
         draggingWireEndpoint = null;
     }
-    
+
     // Always re-enable OrbitControls when pointer is released
-    if (!controls.enabled) {
+    if (!controls.enabled && !breadboardMoveMode) {
         controls.enabled = true;
     }
 });
@@ -1157,17 +1285,17 @@ function createTempWire(fromPin) {
 
     const p1 = new THREE.Vector3();
     fromPin.getWorldPosition(p1);
-    
+
     // Start with a point at the pin, will update in pointermove
     const p2 = p1.clone();
-    
+
     const mid = p1.clone().lerp(p2, 0.5);
     mid.y += 0.3;
-    
+
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
     const geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
     const color = parseInt(wireColorPicker.value);
-    
+
     const material = new THREE.MeshPhysicalMaterial({
         color: color,
         metalness: 0.1,
@@ -1181,7 +1309,7 @@ function createTempWire(fromPin) {
         transparent: true,
         opacity: 0.7 // Slightly transparent to indicate it's temporary
     });
-    
+
     tempWire = new THREE.Mesh(geometry, material);
     tempWire.userData.isTempWire = true;
     scene.add(tempWire);
@@ -1190,16 +1318,16 @@ function createTempWire(fromPin) {
 // Update temporary wire to follow mouse
 function updateTempWire(mousePos) {
     if (!tempWire || !draggingWireFromPin) return;
-    
+
     const p1 = new THREE.Vector3();
     draggingWireFromPin.getWorldPosition(p1);
-    
+
     // Use mouse position (projected onto a plane)
     const p2 = mousePos;
-    
+
     const mid = p1.clone().lerp(p2, 0.5);
     mid.y += 0.3;
-    
+
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
     // Dispose old geometry
     tempWire.geometry.dispose();
@@ -1217,7 +1345,7 @@ function drawWire(pin1, pin2) {
     mid.y += 0.3;
 
     const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
-    
+
     // Use TubeGeometry for thicker, 3D wires
     const geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
     const color = parseInt(wireColorPicker.value);
@@ -1310,7 +1438,7 @@ function createWireEndpointHelpers(wire, p1, p2) {
 function updateWireGeometry(wire) {
     const fromPin = wire.userData.fromPinObj;
     const toPin = wire.userData.toPinObj;
-    
+
     const p1 = new THREE.Vector3();
     const p2 = new THREE.Vector3();
     fromPin.getWorldPosition(p1);
@@ -1324,7 +1452,7 @@ function updateWireGeometry(wire) {
 
     // Update tube geometry
     const newGeometry = new THREE.TubeGeometry(newCurve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
-    
+
     // Dispose old geometry
     wire.geometry.dispose();
     wire.geometry = newGeometry;
@@ -1351,7 +1479,7 @@ function selectWire(wire) {
     wire.material.color.set(0xffffff); // highlight white
     wire.material.emissive.set(0xffffff);
     wire.material.emissiveIntensity = 0.5;
-    
+
     // Show endpoint helpers when wire is selected
     if (wire.userData.fromHelper) {
         wire.userData.fromHelper.material.visible = true;
@@ -1370,7 +1498,7 @@ function deselectWire() {
     selectedWire.material.color.set(originalColor);
     selectedWire.material.emissive.set(originalColor);
     selectedWire.material.emissiveIntensity = 0.2;
-    
+
     // Hide endpoint helpers
     if (selectedWire.userData.fromHelper) {
         selectedWire.userData.fromHelper.material.visible = false;
@@ -1378,7 +1506,7 @@ function deselectWire() {
     if (selectedWire.userData.toHelper) {
         selectedWire.userData.toHelper.material.visible = false;
     }
-    
+
     selectedWire = null;
     draggingWireEndpoint = null;
 }
@@ -1389,7 +1517,7 @@ window.addEventListener('keydown', (e) => {
         // Delete selected wire
         if (selectedWire) {
             const id = selectedWire.userData.id;
-        
+
             // Remove endpoint helpers
             if (selectedWire.userData.fromHelper) {
                 scene.remove(selectedWire.userData.fromHelper);
@@ -1399,20 +1527,20 @@ window.addEventListener('keydown', (e) => {
                 scene.remove(selectedWire.userData.toHelper);
                 wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
             }
-            
+
             // Dispose geometry
             selectedWire.geometry.dispose();
             selectedWire.material.dispose();
-            
+
             wireConnections = wireConnections.filter(w => w.id !== id);
             wires = wires.filter(w => w.userData.id !== id);
-        
+
             scene.remove(selectedWire);
             selectedWire = null;
-        
+
             console.log("UPDATED CONNECTION MAP:", wireConnections);
         }
-        
+
         // Delete selected component
         if (selectedComponent) {
             // Remove any wires connected to this component's pins
@@ -1420,7 +1548,7 @@ window.addEventListener('keydown', (e) => {
             wires = wires.filter(wire => {
                 const fromPin = wire.userData.fromPin;
                 const toPin = wire.userData.toPin;
-                const shouldKeep = !componentPins.some(pin => 
+                const shouldKeep = !componentPins.some(pin =>
                     fromPin.includes(pin) || toPin.includes(pin)
                 );
                 if (!shouldKeep) {
@@ -1429,14 +1557,14 @@ window.addEventListener('keydown', (e) => {
                 }
                 return shouldKeep;
             });
-            
+
             // Remove component from tracking array
             components = components.filter(c => c !== selectedComponent);
-            
+
             // Remove from scene
             scene.remove(selectedComponent);
             selectedComponent = null;
-            
+
             console.log("Component deleted");
         }
     }
@@ -1463,20 +1591,20 @@ window.addEventListener("pointerup", (e) => {
     if (draggingWireFromPin && wireMode) {
         updateMouse(e);
         raycaster.setFromCamera(mouse, camera);
-        
+
         // Check if released over a pin
         const pinIntersect = raycaster.intersectObjects(pinObjects, true);
-        
+
         if (pinIntersect.length > 0) {
             const endPin = pinIntersect[0].object.parent;
-            
+
             // Only create wire if it's a different pin
             if (endPin !== draggingWireFromPin) {
                 // Create final wire
                 drawWire(draggingWireFromPin, endPin);
             }
         }
-        
+
         // Clean up temporary wire
         if (tempWire) {
             scene.remove(tempWire);
@@ -1484,7 +1612,7 @@ window.addEventListener("pointerup", (e) => {
             tempWire.material.dispose();
             tempWire = null;
         }
-        
+
         // Reset starting pin color
         if (draggingWireFromPin) {
             draggingWireFromPin.children[0].material.color.set(0xffffff);
@@ -1492,7 +1620,7 @@ window.addEventListener("pointerup", (e) => {
                 draggingWireFromPin.children[1].material.visible = false;
             }
         }
-        
+
         // Reset target pin if any
         if (targetPin) {
             targetPin.children[0].material.color.set(0xffffff);
@@ -1501,29 +1629,29 @@ window.addEventListener("pointerup", (e) => {
             }
             targetPin = null;
         }
-        
+
         draggingWireFromPin = null;
     }
-    
+
     // Handle component dragging completion
     if (draggingComponent) {
         snapToNearestPin(draggingComponent);
         // Keep selectedComponent selected for potential deletion
         draggingComponent = null;
     }
-    
+
     // Handle wire endpoint drop
     if (draggingWireEndpoint) {
         updateMouse(e);
         raycaster.setFromCamera(mouse, camera);
         const wire = draggingWireEndpoint.wire;
         const endpointType = draggingWireEndpoint.type;
-        
+
         // Check if dropped on a pin
         const pinIntersect = raycaster.intersectObjects(pinObjects, true);
         if (pinIntersect.length > 0) {
             const newPin = pinIntersect[0].object.parent;
-            
+
             // Update wire connection
             if (endpointType === 'from') {
                 wire.userData.fromPin = newPin.name;
@@ -1532,10 +1660,10 @@ window.addEventListener("pointerup", (e) => {
                 wire.userData.toPin = newPin.name;
                 wire.userData.toPinObj = newPin;
             }
-            
+
             // Update wire geometry
             updateWireGeometry(wire);
-            
+
             // Update connection map
             const connection = wireConnections.find(c => c.id === wire.userData.id);
             if (connection) {
@@ -1545,24 +1673,26 @@ window.addEventListener("pointerup", (e) => {
                     connection.to = newPin.name;
                 }
             }
-            
+
             console.log("Wire reconnected:", connection);
         } else {
             // If not dropped on a pin, revert to original position
             updateWireGeometry(wire);
         }
-        
+
         draggingWireEndpoint = null;
     }
-    
+
     // Always re-enable OrbitControls when pointer is released
-    if (!controls.enabled) {
+    if (!controls.enabled && !breadboardMoveMode) {
         controls.enabled = true;
     }
 });
 
 //Snap to Nearest Pin
 function snapToNearestPin(component) {
+    if (component.userData.type === "BREADBOARD") return;
+
     let compPos = new THREE.Vector3();
     component.getWorldPosition(compPos);
 
@@ -1593,6 +1723,17 @@ function snapToNearestPin(component) {
     console.log(component.userData.type, "snapped to", nearest.name);
 }
 
+// Helper to find the root component from a raycast hit object
+function findComponentRoot(obj) {
+    while (obj) {
+        if (obj.userData && obj.userData.type) {
+            return obj;
+        }
+        obj = obj.parent;
+    }
+    return null;
+}
+
 //Update Mouse
 function updateMouse(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -1612,7 +1753,7 @@ animate();
 // Component selection and highlighting
 function highlightComponent(component, highlight) {
     if (!component) return;
-    
+
     if (highlight) {
         // Store original emissive color
         if (!component.userData.originalEmissive) {
@@ -1643,6 +1784,10 @@ function spawnComponent(type) {
 
     if (type === "LED") obj = createLEDPlaceholder();
     if (type === "RESISTOR") obj = createResistorPlaceholder();
+    if (type === "BREADBOARD") {
+        spawnBreadboard();
+        return;
+    }
 
     if (obj) {
         scene.add(obj);
@@ -1661,3 +1806,89 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
 });
+
+function spawnBreadboard() {
+    // Show loading
+    loadingOverlay.classList.remove("hidden");
+
+    // Simulate loading delay
+    setTimeout(() => {
+        const breadboardLoader = new GLTFLoader();
+        breadboardLoader.load('/Breadboard.glb', (gltf) => {
+            const bb = gltf.scene;
+            breadboard = bb; // Store global reference
+
+            // Position it in front of camera
+            breadboard.position.set(0, 0, 2);
+            breadboard.scale.set(1, 1, 1);
+
+            breadboard.userData.type = "BREADBOARD";
+
+            scene.add(breadboard);
+            components.push(breadboard);
+
+            // Detect breadboard pins (names must start with BB_ )
+            breadboard.traverse((obj) => {
+                if (obj.type === "Object3D" && obj.name.startsWith("BB_")) {
+
+                    obj.userData.isPin = true;
+
+                    // Invisible helper sphere for raycast
+                    const helper = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.03),
+                        new THREE.MeshBasicMaterial({ visible: false })
+                    );
+                    obj.add(helper);
+
+                    // Outline / hover ring
+                    const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+                    const ringMat = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        visible: false,
+                        transparent: true
+                    });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.rotation.x = Math.PI / 2;
+                    obj.add(ring);
+
+                    pinObjects.push(obj);
+                }
+            });
+
+            // Hide loading
+            loadingOverlay.classList.add("hidden");
+
+            // Show move button
+            moveBoardBtn.style.display = "block";
+
+            console.log("Breadboard spawned");
+        });
+    }, 1000);
+}
+
+function updateConnectedWires(component) {
+    // Find all pins belonging to this component
+    const componentPins = [];
+    component.traverse((child) => {
+        if (child.userData.isPin) {
+            componentPins.push(child);
+        }
+    });
+
+    // Also check for pins in userData.pins (for placeholders)
+    if (component.userData.pins) {
+        Object.values(component.userData.pins).forEach(pin => {
+            if (pin) componentPins.push(pin);
+        });
+    }
+
+    // Update wires connected to these pins
+    wires.forEach(wire => {
+        const fromPin = wire.userData.fromPinObj;
+        const toPin = wire.userData.toPinObj;
+
+        if (componentPins.includes(fromPin) || componentPins.includes(toPin)) {
+            updateWireGeometry(wire);
+        }
+    });
+}
