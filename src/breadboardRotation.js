@@ -41,6 +41,16 @@ export function createBreadboardIcon(breadboard) {
     arrow.position.set(0.1, 0, 0);
     iconGroup.add(arrow);
 
+    // Add invisible larger hitbox for easier clicking
+    const hitboxGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+    const hitboxMaterial = new THREE.MeshBasicMaterial({
+        visible: false,
+        transparent: true,
+        opacity: 0
+    });
+    const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+    iconGroup.add(hitbox);
+
     breadboardIcon = iconGroup;
 
     // Position the icon at the end of the breadboard
