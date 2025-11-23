@@ -12,6 +12,13 @@ import {
     getIcon,
     removeBreadboardIcon
 } from './breadboardRotation.js';
+import {
+    startLEDRotation,
+    stopLEDRotation,
+    updateLEDMouseRotation,
+    isLEDRotating,
+    getSelectedLED
+} from './ledRotation.js';
 import { createRoomBackground } from './roomBackground.js';
 
 // SPLASH SCREEN HANDLING
@@ -185,10 +192,11 @@ function createLEDPlaceholder() {
         });
 
         // SCALE DOWN THE MODEL HERE
-        ledModel.scale.set(0.1, 0.1, 0.1); // Try 0.1 or 0.05 depending on how big it is
+        ledModel.scale.set(0.1, 0.1, 0.1);
 
         led.add(ledModel);
-        console.log("LED model loaded");
+
+        console.log("LED model loaded (use R key to rotate)");
     }, undefined, (error) => {
         console.error("Error loading LED model:", error);
         // Fallback: create simple placeholder if model fails to load
@@ -332,6 +340,38 @@ let editingWireEnd = null; // Which end is being edited: 'from' or 'to'
 const WIRE_RADIUS = 0.045; // Thicker, more realistic wire radius
 const WIRE_RADIAL_SEGMENTS = 16;
 const WIRE_TUBULAR_SEGMENTS = 96;
+
+// Track current mouse position for R key rotation
+let currentMouseX = 0;
+let currentMouseY = 0;
+
+// Update mouse position tracking
+window.addEventListener('mousemove', (e) => {
+    currentMouseX = e.clientX;
+    currentMouseY = e.clientY;
+});
+
+// R key for LED rotation
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') {
+        // Only start rotation if an LED is selected
+        if (selectedComponent && selectedComponent.userData.type === "LED" && !isLEDRotating()) {
+            controls.enabled = false; // Lock camera
+            startLEDRotation(selectedComponent, currentMouseX, currentMouseY);
+            console.log("🔒 Camera locked - LED rotation mode ON (R key)");
+        }
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.key === 'r' || e.key === 'R') {
+        if (isLEDRotating()) {
+            stopLEDRotation();
+            controls.enabled = true; // Unlock camera
+            console.log("🔓 Camera unlocked - LED rotation mode OFF (R key)");
+        }
+    }
+});
 
 // New helper: set outline visible/color for breadboard pins based on current wire connections
 function refreshPinHighlight(pin) {
@@ -658,9 +698,15 @@ loader.load('/Arduino.glb', (gltf) => {
 
 // HOVER PIN and DRAG COMPONENT
 window.addEventListener('pointermove', (e) => {
-    // Handle rotation icon dragging
+    // Handle breadboard rotation icon dragging
     if (isIconDragging() && breadboard) {
         updateMouseRotation(breadboard, e.clientX, updateConnectedWires);
+        return;
+    }
+
+    // Handle LED rotation with R key
+    if (isLEDRotating()) {
+        updateLEDMouseRotation(currentMouseX, currentMouseY, updateConnectedWires);
         return;
     }
 
@@ -958,7 +1004,8 @@ window.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerdown', (e) => {
     updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
-    // Check if clicked on rotation icon
+
+    // Check if clicked on breadboard rotation icon
     if (breadboardMoveMode) {
         const icon = getIcon();
         if (icon) {
@@ -969,6 +1016,7 @@ window.addEventListener('pointerdown', (e) => {
             }
         }
     }
+
 
     // 1. Check if clicked on a component (when not in wire mode)
     if (true) {
@@ -1143,11 +1191,12 @@ window.addEventListener('pointerdown', (e) => {
 
 // POINTER UP HANDLER - Finalize wire connection
 window.addEventListener('pointerup', (e) => {
-    // Stop icon dragging
+    // Stop breadboard icon dragging
     if (isIconDragging()) {
         stopIconDrag();
         return;
     }
+
     // Handle wire dragging completion
     if (draggingWireFromPin && wireMode) {
         updateMouse(e);
