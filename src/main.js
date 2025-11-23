@@ -9,7 +9,8 @@ import {
     stopIconDrag,
     updateMouseRotation,
     isIconDragging,
-    getIcon
+    getIcon,
+    removeBreadboardIcon
 } from './breadboardRotation.js';
 import { createRoomBackground } from './roomBackground.js';
 
@@ -1575,43 +1576,20 @@ function deselectWire() {
 // DELETE WITH KEYBOARD
 window.addEventListener('keydown', (e) => {
 	if (e.key === "Delete") {
-		// Delete selected wire
-		if (selectedWire) {
-			const id = selectedWire.userData.id;
-
-			// Capture pins before removal to refresh their state afterwards
-			const fromPinObj = selectedWire.userData.fromPinObj;
-			const toPinObj = selectedWire.userData.toPinObj;
-
-			// Remove endpoint helpers
-			if (selectedWire.userData.fromHelper) {
-				scene.remove(selectedWire.userData.fromHelper);
-				wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.fromHelper);
-			}
-			if (selectedWire.userData.toHelper) {
-				scene.remove(selectedWire.userData.toHelper);
-				wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
-			}
-
-			// Dispose geometry
-			selectedWire.geometry.dispose();
-			selectedWire.material.dispose();
-
-			wireConnections = wireConnections.filter(w => w.id !== id);
-			wires = wires.filter(w => w.userData.id !== id);
-
-			scene.remove(selectedWire);
-			selectedWire = null;
-
-			// Refresh outline state on both pins (will hide if no other wire remains)
-			refreshPinHighlight(fromPinObj);
-			refreshPinHighlight(toPinObj);
-
-			console.log("UPDATED CONNECTION MAP:", wireConnections);
-		}
+		// Delete selected wire (shared logic)
+		deleteSelectedWire();
 
 		// Delete selected component
 		if (selectedComponent) {
+            // If deleting a breadboard, remove its rotation icon and clear global ref
+            if (selectedComponent.userData.type === "BREADBOARD") {
+                try {
+                    removeBreadboardIcon(selectedComponent);
+                } catch (err) { /* ignore if icon removal fails */ }
+                if (breadboard === selectedComponent) {
+                    breadboard = null;
+                }
+            }
 			// Remove any wires connected to this component's pins
 			const componentPins = Object.keys(selectedComponent.userData.pins || {});
 			wires = wires.filter(wire => {
@@ -1634,12 +1612,19 @@ window.addEventListener('keydown', (e) => {
 			scene.remove(selectedComponent);
 			selectedComponent = null;
 
+            // If no breadboards remain, hide the Move Board button
+            const anyBreadboard = components.some(c => c.userData && c.userData.type === "BREADBOARD");
+            if (!anyBreadboard) {
+                moveBoardBtn.style.display = "none";
+                // also ensure move mode is off
+                breadboardMoveMode = false;
+                controls.enabled = true;
+            }
++
 			console.log("Component deleted");
 		}
 	}
 });
-
-
 
 document.querySelectorAll(".spawn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -2012,3 +1997,196 @@ if (ideToggleBtn) {
         ideToggleBtn.classList.toggle('ide-open');
     });
 }
+
+// ===== Wire context-menu & right-click delete helper =====
+
+// Create a floating "Delete wire" button (lazy)
+function ensureWireContextMenu() {
+	if (document.getElementById('deleteWireBtn')) return;
+	const btn = document.createElement('button');
+	btn.id = 'deleteWireBtn';
+	btn.textContent = 'Delete wire';
+	Object.assign(btn.style, {
+		position: 'fixed',
+		zIndex: 100000,
+		display: 'none',
+		padding: '8px 12px',
+		background: '#c62828',
+		color: '#fff',
+		border: 'none',
+		borderRadius: '6px',
+		cursor: 'pointer',
+		boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+	});
+	document.body.appendChild(btn);
+
+	// Prevent global pointerdown from hiding the menu before this button's click runs
+	btn.addEventListener('pointerdown', (ev) => {
+		ev.stopPropagation();
+	});
+
+	// Click handler to delete the wire currently targeted
+	btn.addEventListener('click', (ev) => {
+		ev.stopPropagation();
+		const targetId = btn.dataset.targetWireId;
+		if (typeof targetId === 'undefined') {
+			hideWireContextMenu();
+			return;
+		}
+		// Find wire object by id
+		const wire = wires.find(w => String(w.userData.id) === String(targetId));
+		if (wire) {
+			// Reuse same deletion code path as keyboard: set selectedWire and delete
+			selectedWire = wire;
+			deleteSelectedWire();
+		}
+		hideWireContextMenu();
+	});
+}
+
+// Show menu at event position for a specific wire
+function showWireContextMenu(event, wire) {
+	ensureWireContextMenu();
+	const btn = document.getElementById('deleteWireBtn');
+	if (!btn) return;
+	btn.style.left = (event.clientX + 4) + 'px';
+	btn.style.top = (event.clientY + 4) + 'px';
+	btn.style.display = 'block';
+	btn.dataset.targetWireId = String(wire.userData.id);
+	// prevent native context menu when our custom menu is visible
+	event.preventDefault();
+}
+
+// Hide the floating menu
+function hideWireContextMenu() {
+	const btn = document.getElementById('deleteWireBtn');
+	if (!btn) return;
+	btn.style.display = 'none';
+	delete btn.dataset.targetWireId;
+}
+
+// Remove a wire object safely (reused by both Delete key and context menu)
+function deleteWireObject(wire) {
+	if (!wire || !wire.userData || !wire.userData.id) return;
+
+	// Capture pins
+	const fromPin = wire.userData.fromPinObj;
+	const toPin = wire.userData.toPinObj;
+
+	// Remove endpoint helpers
+	if (wire.userData.fromHelper) {
+		scene.remove(wire.userData.fromHelper);
+		wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== wire.userData.fromHelper);
+	}
+	if (wire.userData.toHelper) {
+		scene.remove(wire.userData.toHelper);
+		wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== wire.userData.toHelper);
+	}
+
+	// Dispose geometry & material
+	try { wire.geometry.dispose(); } catch (e) {}
+	try { if (wire.material) wire.material.dispose(); } catch (e) {}
+
+	// Remove from connection map and wires array
+	wireConnections = wireConnections.filter(w => w.id !== wire.userData.id);
+	wires = wires.filter(w => w.userData.id !== wire.userData.id);
+
+	// Remove from scene
+	if (wire.parent) {
+		wire.parent.remove(wire);
+	} else {
+		scene.remove(wire);
+	}
+
+	// If this was selectedWire, clear selection state
+	if (selectedWire === wire) {
+		selectedWire = null;
+	}
+
+	// Refresh pin outlines for both endpoints
+	refreshPinHighlight(fromPin);
+	refreshPinHighlight(toPin);
+
+	console.log("Wire deleted via context menu:", wire.userData.id, "UPDATED CONNECTION MAP:", wireConnections);
+}
+
+// NEW: unify deletion logic for selectedWire so both Delete key and button use same behavior
+function deleteSelectedWire() {
+	if (!selectedWire) return;
+
+	const id = selectedWire.userData.id;
+
+	// Capture pins before removal to refresh their state afterwards
+	const fromPinObj = selectedWire.userData.fromPinObj;
+	const toPinObj = selectedWire.userData.toPinObj;
+
+	// Remove endpoint helpers
+	if (selectedWire.userData.fromHelper) {
+		scene.remove(selectedWire.userData.fromHelper);
+		wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.fromHelper);
+	}
+	if (selectedWire.userData.toHelper) {
+		scene.remove(selectedWire.userData.toHelper);
+		wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
+	}
+
+	// Dispose geometry/material safely
+	try { selectedWire.geometry.dispose(); } catch (err) {}
+	try { if (selectedWire.material) selectedWire.material.dispose(); } catch (err) {}
+
+	// Remove from connection map and wires array
+	wireConnections = wireConnections.filter(w => w.id !== id);
+	wires = wires.filter(w => w.userData.id !== id);
+
+	// Remove from scene
+	if (selectedWire.parent) {
+		selectedWire.parent.remove(selectedWire);
+	} else {
+		scene.remove(selectedWire);
+	}
+
+	// Clear selection
+	selectedWire = null;
+
+	// Refresh outline state on both pins (will hide if no other wire remains)
+	refreshPinHighlight(fromPinObj);
+	refreshPinHighlight(toPinObj);
+
+	console.log("UPDATED CONNECTION MAP:", wireConnections);
+}
+
+// Right-click handler: show delete button when a wire is under cursor
+window.addEventListener('contextmenu', (e) => {
+	// Prevent native menu if we're over a wire
+	updateMouse(e);
+	raycaster.setFromCamera(mouse, camera);
+	const intersects = raycaster.intersectObjects(wires, true);
+	if (intersects.length > 0) {
+		// Ensure we target the top-level wire mesh (in case a child was hit)
+		let obj = intersects[0].object;
+		while (obj && !(obj.userData && obj.userData.isWire)) {
+			obj = obj.parent;
+		}
+		if (obj) {
+			showWireContextMenu(e, obj);
+			return;
+		}
+	}
+	// hide if clicked elsewhere
+	hideWireContextMenu();
+});
+
+// Hide menu on any left-click or when the user scrolls/resizes
+window.addEventListener('pointerdown', (e) => {
+	// Only hide if left-click and the click is outside the floating delete button
+	if (e.button === 0) {
+		const btn = document.getElementById('deleteWireBtn');
+		if (btn && btn.style.display === 'block') {
+			// If click target is not inside our button, hide; otherwise let the button's own handlers run
+			if (!btn.contains(e.target)) hideWireContextMenu();
+		}
+	}
+});
+window.addEventListener('wheel', hideWireContextMenu);
+window.addEventListener('resize', hideWireContextMenu);
+window.addEventListener('scroll', hideWireContextMenu);

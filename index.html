@@ -331,6 +331,91 @@
       z-index: 200;
     }
 
+    /* Components stacked menu */
+    .components-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    #components-toggle {
+      padding: 10px 16px;
+      background: #333;
+      color: white;
+      border-radius: 6px;
+      border: 1px solid #555;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #components-menu {
+      position: absolute;
+      top: 44px;
+      /* below the button */
+      left: 0;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      background: #1a1a1a;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      min-width: 180px;
+      z-index: 300;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    }
+
+    #components-menu.visible {
+      display: flex;
+    }
+
+    #components-menu .spawn,
+    #components-menu #addWireBtn,
+    #components-menu #moveBoardBtn {
+      display: block;
+      width: 100%;
+      margin: 0;
+      padding: 8px;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    #components-menu .spawn:hover,
+    #components-menu #addWireBtn:hover,
+    #components-menu #moveBoardBtn:hover {
+      background: #444;
+    }
+
+    #components-menu select {
+      /* kept for fallback but hidden by default via .wire-control */
+      padding: 8px;
+      background: #333;
+      color: white;
+      border-radius: 6px;
+      border: 1px solid #555;
+      font-size: 14px;
+      cursor: pointer;
+      min-width: 96px;
+    }
+
+    /* NEW: wire control — show color picker to the right of Add Wire only when active */
+    .wire-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .wire-control select {
+      display: none;
+    }
+
+    .wire-control.show-select select {
+      display: inline-block;
+    }
+
     #addWireBtn {
       padding: 10px 16px;
       background: #333;
@@ -610,34 +695,91 @@
   <div id="mainContent">
     <!-- UI BAR -->
     <div id="uiBar">
-      <button id="addWireBtn">Add Wire</button>
-      <select id="wireColorPicker">
-        <option value="0xff0000">Red</option>
-        <option value="0x00ff00">Green</option>
-        <option value="0x0000ff">Blue</option>
-        <option value="0xffff00">Yellow</option>
-        <option value="0xff00ff">Magenta</option>
-        <option value="0x00ffff">Cyan</option>
-        <option value="0xffffff">White</option>
-        <option value="0x000000">Black</option>
-      </select>
-      <button id="moveBoardBtn" style="display:none;">Move Board</button>
+      <div class="components-container">
+        <button id="components-toggle">Components</button>
+        <div id="components-menu" aria-hidden="true">
+          <div class="wire-control" id="wireControl">
+            <button id="addWireBtn">Add Wire</button>
+            <select id="wireColorPicker" aria-label="Wire Color">
+              <option value="0xff0000">Red</option>
+              <option value="0x00ff00">Green</option>
+              <option value="0x0000ff">Blue</option>
+              <option value="0xffff00">Yellow</option>
+              <option value="0xff00ff">Magenta</option>
+              <option value="0x00ffff">Cyan</option>
+              <option value="0xffffff">White</option>
+              <option value="0x000000">Black</option>
+            </select>
+          </div>
+          <button class="spawn" data-type="LED">Add LED</button>
+          <button class="spawn" data-type="RESISTOR">Add Resistor</button>
+          <button class="spawn" data-type="BREADBOARD">Add Breadboard</button>
+        </div>
+      </div>
+      <!-- Move Board button is outside the Components menu so it can appear next to the Components toggle -->
+      <button id="moveBoardBtn" style="display:none; margin-left:8px;">Move Board</button>
     </div>
 
     <div id="pinLabel"></div>
 
-    <div id="sidebar">
-      <h3>Components</h3>
-      <button class="spawn" data-type="LED">Add LED</button>
-      <button class="spawn" data-type="RESISTOR">Add Resistor</button>
-      <button class="spawn" data-type="BREADBOARD">Add Breadboard</button>
-    </div>
   </div>
 
   <div id="loadingOverlay" class="hidden">Adding Breadboard...</div>
   <button id="ide-toggle-btn">CODE</button>
 
   <script type="module" src="/src/main.js"></script>
+  <script>
+    // Components menu toggle: keep UI behavior minimal and independent from main.js
+    (function(){
+      const toggle = document.getElementById('components-toggle');
+      const menu = document.getElementById('components-menu');
+      if (!toggle || !menu) return;
+
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('visible');
+        menu.setAttribute('aria-hidden', menu.classList.contains('visible') ? 'false' : 'true');
+      });
+
+      // Close the menu when clicking outside
+      document.addEventListener('click', () => {
+        if (menu.classList.contains('visible')) {
+          menu.classList.remove('visible');
+          menu.setAttribute('aria-hidden', 'true');
+        }
+      });
+
+      // Prevent clicks inside the menu from closing it
+      menu.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      // NEW: show/hide wire color picker to the right of Add Wire
+      const addBtn = document.getElementById('addWireBtn');
+      const wireControl = document.getElementById('wireControl');
+      if (addBtn && wireControl) {
+        // initialize based on current button text
+        setTimeout(() => {
+          if (addBtn.textContent.includes('Wire Mode: ON')) {
+            wireControl.classList.add('show-select');
+          } else {
+            wireControl.classList.remove('show-select');
+          }
+        }, 0);
+
+        addBtn.addEventListener('click', () => {
+          // use a microtask to let main.js update the button text first
+          setTimeout(() => {
+            if (addBtn.textContent.includes('Wire Mode: ON')) {
+              wireControl.classList.add('show-select');
+            } else {
+              wireControl.classList.remove('show-select');
+            }
+          }, 0);
+        });
+      }
+    })();
+  </script>
 </body>
 
 </html>
