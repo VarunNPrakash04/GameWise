@@ -297,6 +297,30 @@ const WIRE_RADIUS = 0.045; // Thicker, more realistic wire radius
 const WIRE_RADIAL_SEGMENTS = 16;
 const WIRE_TUBULAR_SEGMENTS = 96;
 
+// New helper: set outline visible/color for breadboard pins based on current wire connections
+function refreshPinHighlight(pin) {
+	// ...safety...
+	if (!pin) return;
+	// Only consider breadboard pins
+	const root = findComponentRoot(pin);
+	if (!root || root.userData?.type !== 'BREADBOARD') {
+		// If not breadboard, ensure outline (if present) remains hidden
+		if (pin.children && pin.children[1]) {
+			pin.children[1].material.visible = false;
+		}
+		return;
+	}
+	// Determine if any wire remains connected to this pin
+	const stillConnected = wires.some(w => {
+		return (w.userData.fromPinObj === pin) || (w.userData.toPinObj === pin);
+	});
+	if (pin.children && pin.children[1]) {
+		// Dark blue highlight when connected
+		pin.children[1].material.color.set(0x001f7a);
+		pin.children[1].material.visible = !!stillConnected;
+	}
+}
+
 // HTML
 const pinLabel = document.getElementById("pinLabel");
 const addWireBtn = document.getElementById("addWireBtn");
@@ -709,18 +733,24 @@ window.addEventListener('pointermove', (e) => {
             if (pin !== draggingWireFromPin) {
                 // Highlight target pin
                 if (targetPin && targetPin !== pin) {
-                    // Reset previous target pin
+                    // Reset previous target pin visual state (respect existing connections)
                     targetPin.children[0].material.color.set(0xffffff);
                     if (targetPin.children[1]) {
-                        targetPin.children[1].material.visible = false;
+                        refreshPinHighlight(targetPin);
                     }
                 }
 
                 targetPin = pin;
-                pin.children[0].material.color.set(0x00ff00); // Green for target
+
+                // Determine if this pin belongs to a breadboard -> keep breadboard pin outline black
+                const root = findComponentRoot(pin);
+                const isBreadboardPin = root && root.userData && root.userData.type === 'BREADBOARD';
+
+                // Set pin color (body) and outline color accordingly
+                pin.children[0].material.color.set(isBreadboardPin ? 0x000000 : 0x00ff00);
                 if (pin.children[1]) {
                     pin.children[1].material.visible = true;
-                    pin.children[1].material.color.set(0x00ff00);
+                    pin.children[1].material.color.set(isBreadboardPin ? 0x000000 : 0x00ff00);
                 }
 
                 // Show pin label for target pin
@@ -749,7 +779,7 @@ window.addEventListener('pointermove', (e) => {
                 if (targetPin) {
                     targetPin.children[0].material.color.set(0xffffff);
                     if (targetPin.children[1]) {
-                        targetPin.children[1].material.visible = false;
+                        refreshPinHighlight(targetPin);
                     }
                     targetPin = null;
                 }
@@ -785,7 +815,7 @@ window.addEventListener('pointermove', (e) => {
             if (targetPin) {
                 targetPin.children[0].material.color.set(0xffffff);
                 if (targetPin.children[1]) {
-                    targetPin.children[1].material.visible = false;
+                    refreshPinHighlight(targetPin);
                 }
                 targetPin = null;
             }
@@ -825,8 +855,9 @@ window.addEventListener('pointermove', (e) => {
             // But simpler: just disable all pin hovering when moving board
             if (hoveredPin) {
                 hoveredPin.children[0].material.color.set(0xffffff);
+                // Restore previous pin outline according to its connection state
                 if (hoveredPin.children[1]) {
-                    hoveredPin.children[1].material.visible = false;
+                    refreshPinHighlight(hoveredPin);
                 }
                 hoveredPin = null;
                 pinLabel.style.display = "none";
@@ -852,9 +883,9 @@ window.addEventListener('pointermove', (e) => {
         if (!intersect.length) {
             if (hoveredPin) {
                 hoveredPin.children[0].material.color.set(0xffffff);
-                // Hide outline
+                // Restore outline according to connection state (breadboard pins keep dark-blue if connected)
                 if (hoveredPin.children[1]) {
-                    hoveredPin.children[1].material.visible = false;
+                    refreshPinHighlight(hoveredPin);
                 }
             }
             hoveredPin = null;
@@ -867,9 +898,9 @@ window.addEventListener('pointermove', (e) => {
         if (hoveredPin !== pin) {
             if (hoveredPin) {
                 hoveredPin.children[0].material.color.set(0xffffff);
-                // Hide previous pin outline
+                // Restore previous pin outline according to its connection state
                 if (hoveredPin.children[1]) {
-                    hoveredPin.children[1].material.visible = false;
+                    refreshPinHighlight(hoveredPin);
                 }
             }
             pin.children[0].material.color.set(0xffff00);
@@ -1096,6 +1127,10 @@ window.addEventListener('pointerup', (e) => {
             if (endPin !== draggingWireFromPin) {
                 if (editingWire) {
                     // We're editing an existing wire - update it
+                    // store old endpoints
+                    const oldFrom = originalWireConnection.fromPin;
+					const oldTo = originalWireConnection.toPin;
+
                     if (editingWireEnd === 'from') {
                         // Update the fromPin
                         editingWire.userData.fromPin = endPin.name;
@@ -1131,6 +1166,12 @@ window.addEventListener('pointerup', (e) => {
                         editingWire.userData.toHelper.position.copy(p2);
                     }
 
+                    // Refresh highlights: old endpoints may now be disconnected, new endpoints should show highlight
+					refreshPinHighlight(oldFrom);
+					refreshPinHighlight(oldTo);
+					refreshPinHighlight(editingWire.userData.fromPinObj);
+					refreshPinHighlight(editingWire.userData.toPinObj);
+
                     console.log("Wire updated:", connection);
                 } else {
                     // Create new wire
@@ -1158,6 +1199,10 @@ window.addEventListener('pointerup', (e) => {
                     if (editingWire.userData.toHelper) {
                         editingWire.userData.toHelper.position.copy(p2);
                     }
+
+                    // Refresh highlights back to original pins
+					refreshPinHighlight(originalWireConnection.fromPin);
+					refreshPinHighlight(originalWireConnection.toPin);
 
                     console.log("Wire restored to original connection");
                 }
@@ -1201,7 +1246,7 @@ window.addEventListener('pointerup', (e) => {
         if (draggingWireFromPin) {
             draggingWireFromPin.children[0].material.color.set(0xffffff);
             if (draggingWireFromPin.children[1]) {
-                draggingWireFromPin.children[1].material.visible = false;
+                refreshPinHighlight(draggingWireFromPin);
             }
         }
 
@@ -1209,7 +1254,7 @@ window.addEventListener('pointerup', (e) => {
         if (targetPin) {
             targetPin.children[0].material.color.set(0xffffff);
             if (targetPin.children[1]) {
-                targetPin.children[1].material.visible = false;
+                refreshPinHighlight(targetPin);
             }
             targetPin = null;
         }
@@ -1242,6 +1287,9 @@ window.addEventListener('pointerup', (e) => {
         if (pinIntersect.length > 0) {
             const newPin = pinIntersect[0].object.parent;
 
+            // Remember old pin
+            const oldPin = draggingWireEndpoint.originalPin;
+
             // Update wire connection
             if (endpointType === 'from') {
                 wire.userData.fromPin = newPin.name;
@@ -1263,6 +1311,10 @@ window.addEventListener('pointerup', (e) => {
                     connection.to = newPin.name;
                 }
             }
+
+            // Refresh highlights: old pin may be disconnected now; new pin should show dark-blue ring
+			refreshPinHighlight(oldPin);
+			refreshPinHighlight(newPin);
 
             console.log("Wire reconnected:", connection);
         } else {
@@ -1399,6 +1451,10 @@ function drawWire(pin1, pin2) {
     });
 
     console.log("CONNECTION MAP:", wireConnections);
+
+    // Ensure breadboard pin outlines reflect this new connection
+    refreshPinHighlight(pin1);
+	refreshPinHighlight(pin2);
 }
 
 // Create visual helpers at wire endpoints
@@ -1518,61 +1574,69 @@ function deselectWire() {
 
 // DELETE WITH KEYBOARD
 window.addEventListener('keydown', (e) => {
-    if (e.key === "Delete") {
-        // Delete selected wire
-        if (selectedWire) {
-            const id = selectedWire.userData.id;
+	if (e.key === "Delete") {
+		// Delete selected wire
+		if (selectedWire) {
+			const id = selectedWire.userData.id;
 
-            // Remove endpoint helpers
-            if (selectedWire.userData.fromHelper) {
-                scene.remove(selectedWire.userData.fromHelper);
-                wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.fromHelper);
-            }
-            if (selectedWire.userData.toHelper) {
-                scene.remove(selectedWire.userData.toHelper);
-                wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
-            }
+			// Capture pins before removal to refresh their state afterwards
+			const fromPinObj = selectedWire.userData.fromPinObj;
+			const toPinObj = selectedWire.userData.toPinObj;
 
-            // Dispose geometry
-            selectedWire.geometry.dispose();
-            selectedWire.material.dispose();
+			// Remove endpoint helpers
+			if (selectedWire.userData.fromHelper) {
+				scene.remove(selectedWire.userData.fromHelper);
+				wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.fromHelper);
+			}
+			if (selectedWire.userData.toHelper) {
+				scene.remove(selectedWire.userData.toHelper);
+				wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
+			}
 
-            wireConnections = wireConnections.filter(w => w.id !== id);
-            wires = wires.filter(w => w.userData.id !== id);
+			// Dispose geometry
+			selectedWire.geometry.dispose();
+			selectedWire.material.dispose();
 
-            scene.remove(selectedWire);
-            selectedWire = null;
+			wireConnections = wireConnections.filter(w => w.id !== id);
+			wires = wires.filter(w => w.userData.id !== id);
 
-            console.log("UPDATED CONNECTION MAP:", wireConnections);
-        }
+			scene.remove(selectedWire);
+			selectedWire = null;
 
-        // Delete selected component
-        if (selectedComponent) {
-            // Remove any wires connected to this component's pins
-            const componentPins = Object.keys(selectedComponent.userData.pins || {});
-            wires = wires.filter(wire => {
-                const fromPin = wire.userData.fromPin;
-                const toPin = wire.userData.toPin;
-                const shouldKeep = !componentPins.some(pin =>
-                    fromPin.includes(pin) || toPin.includes(pin)
-                );
-                if (!shouldKeep) {
-                    scene.remove(wire);
-                    wireConnections = wireConnections.filter(w => w.id !== wire.userData.id);
-                }
-                return shouldKeep;
-            });
+			// Refresh outline state on both pins (will hide if no other wire remains)
+			refreshPinHighlight(fromPinObj);
+			refreshPinHighlight(toPinObj);
 
-            // Remove component from tracking array
-            components = components.filter(c => c !== selectedComponent);
+			console.log("UPDATED CONNECTION MAP:", wireConnections);
+		}
 
-            // Remove from scene
-            scene.remove(selectedComponent);
-            selectedComponent = null;
+		// Delete selected component
+		if (selectedComponent) {
+			// Remove any wires connected to this component's pins
+			const componentPins = Object.keys(selectedComponent.userData.pins || {});
+			wires = wires.filter(wire => {
+				const fromPin = wire.userData.fromPin;
+				const toPin = wire.userData.toPin;
+				const shouldKeep = !componentPins.some(pin =>
+					fromPin.includes(pin) || toPin.includes(pin)
+				);
+				if (!shouldKeep) {
+					scene.remove(wire);
+					wireConnections = wireConnections.filter(w => w.id !== wire.userData.id);
+				}
+				return shouldKeep;
+			});
 
-            console.log("Component deleted");
-        }
-    }
+			// Remove component from tracking array
+			components = components.filter(c => c !== selectedComponent);
+
+			// Remove from scene
+			scene.remove(selectedComponent);
+			selectedComponent = null;
+
+			console.log("Component deleted");
+		}
+	}
 });
 
 
@@ -1622,7 +1686,7 @@ window.addEventListener("pointerup", (e) => {
         if (draggingWireFromPin) {
             draggingWireFromPin.children[0].material.color.set(0xffffff);
             if (draggingWireFromPin.children[1]) {
-                draggingWireFromPin.children[1].material.visible = false;
+                refreshPinHighlight(draggingWireFromPin);
             }
         }
 
@@ -1630,7 +1694,7 @@ window.addEventListener("pointerup", (e) => {
         if (targetPin) {
             targetPin.children[0].material.color.set(0xffffff);
             if (targetPin.children[1]) {
-                targetPin.children[1].material.visible = false;
+                refreshPinHighlight(targetPin);
             }
             targetPin = null;
         }
@@ -1678,6 +1742,10 @@ window.addEventListener("pointerup", (e) => {
                     connection.to = newPin.name;
                 }
             }
+
+            // Refresh highlights: old pin may be disconnected now; new pin should show dark-blue ring
+			refreshPinHighlight(oldPin);
+			refreshPinHighlight(newPin);
 
             console.log("Wire reconnected:", connection);
         } else {
