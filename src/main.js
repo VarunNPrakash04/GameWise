@@ -178,7 +178,7 @@ renderer.shadowMap.enabled = false; // Disable shadows for Material Preview mode
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.4; // Slightly higher exposure for more vibrant colors
 document.body.appendChild(renderer.domElement);
-renderer.domElement.style.cursor = 'pointer';
+renderer.domElement.style.cursor = 'default';
 
 // CONTROLS
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -475,26 +475,24 @@ loader.load('/Arduino.glb', (gltf) => {
                     // Convert to MeshStandardMaterial if it's not already
                     if (!oldMat.isMeshStandardMaterial) {
                         const newMat = new THREE.MeshStandardMaterial({
-                            color: originalColor, // Preserve original color
-                            map: oldMat.map || null, // Preserve texture map
+                            color: originalColor,
+                            map: oldMat.map || null,
                             normalMap: oldMat.normalMap || null,
-                            roughness: 0.3, // Lower roughness for Material Preview (more reflective, like Blender)
-                            metalness: 0.5, // Moderate metalness for better material preview
-                            envMap: envMap, // Apply environment map for Material Preview
-                            envMapIntensity: 1.0, // Reduced to preserve material colors (was 1.6)
+                            roughness: 0.3, // Original clean look
+                            metalness: 0.5, // Moderate metalness
+                            envMap: envMap,
+                            envMapIntensity: 1.0, // Balanced reflections
                             side: THREE.FrontSide
                         });
                         return newMat;
                     } else {
-                        // If already StandardMaterial, adjust for Material Preview mode
-                        // Preserve original color - don't override it
                         if (!oldMat.color) {
                             oldMat.color = new THREE.Color(originalColor);
                         }
-                        oldMat.roughness = Math.min(oldMat.roughness || 0.5, 0.35); // Lower for more reflection
-                        oldMat.metalness = Math.max(oldMat.metalness || 0.3, 0.4);
-                        oldMat.envMap = envMap; // Apply environment map
-                        oldMat.envMapIntensity = oldMat.envMapIntensity || 1.0; // Reduced to preserve colors
+                        oldMat.roughness = 0
+                        oldMat.metalness = 0
+                        oldMat.envMap = envMap;
+                        oldMat.envMapIntensity = 0
                         oldMat.needsUpdate = true;
                         return oldMat;
                     }
@@ -1862,31 +1860,22 @@ function spawnBreadboard() {
             components.push(breadboard);
 
             // Detect breadboard pins (names must start with BB_ )
-            breadboard.traverse((obj) => {
-                if (obj.type === "Object3D" && obj.name.startsWith("BB_")) {
-
-                    obj.userData.isPin = true;
-
-                    // Invisible helper sphere for raycast
-                    const helper = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.03),
-                        new THREE.MeshBasicMaterial({ visible: false })
-                    );
-                    obj.add(helper);
-
-
-                    // Outline / hover ring
-                    const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
-                    const ringMat = new THREE.MeshBasicMaterial({
-                        color: 0xffffff,
-                        visible: false,
-                        transparent: true
+            // Apply same material settings as Arduino
+            breadboard.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.material) {
+                    const materials = Array.isArray(child.material) ? child.material : [child.material];
+                    child.material = materials.map((mat) => {
+                        if (mat.isMeshStandardMaterial) {
+                            mat.roughness = 1;
+                            mat.metalness = 1;
+                            mat.envMapIntensity = 1;
+                            mat.needsUpdate = true;
+                        }
+                        return mat;
                     });
-                    const ring = new THREE.Mesh(ringGeo, ringMat);
-                    ring.rotation.x = Math.PI / 2;
-                    obj.add(ring);
-
-                    pinObjects.push(obj);
+                    if (child.material.length === 1) {
+                        child.material = child.material[0];
+                    }
                 }
             });
 
