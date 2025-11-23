@@ -1863,7 +1863,7 @@ function spawnBreadboard() {
                     // Outline / hover ring
                     const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
                     const ringMat = new THREE.MeshBasicMaterial({
-                        color: 0xffffff,
+                        color: 0x000000,
                         visible: false,
                         transparent: true
                     });
