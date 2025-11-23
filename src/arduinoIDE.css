@@ -280,6 +280,7 @@
 #ide-toggle-btn.ide-open {
     right: 450px;
     background: #495af2;
+    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Responsive */

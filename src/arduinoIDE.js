@@ -233,6 +233,16 @@ export function closeIDE() {
 
     idePanel.classList.remove('open');
     isIDEOpen = false;
+
+    // Reset toggle button position
+    const toggleBtn = document.getElementById('ide-toggle-btn');
+    if (toggleBtn) {
+        toggleBtn.style.right = ''; // Clear inline style
+    }
+
+    // Reset panel width to default
+    idePanel.style.width = '450px';
+
     console.log('IDE closed');
 }
 

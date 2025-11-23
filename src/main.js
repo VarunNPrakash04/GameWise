@@ -1883,7 +1883,7 @@ function spawnBreadboard() {
             // Apply same material settings as Arduino
             // Detect breadboard pins (names must start with BB_ )
             breadboard.traverse((obj) => {
-                if (obj.type === "Object3D" && obj.name.startsWith("BB_")) {
+                if (obj.type === "Object3D" && (obj.name.startsWith("BB_") || obj.name.includes("GND") || obj.name.includes("VCC"))) {
 
                     obj.userData.isPin = true;
 
