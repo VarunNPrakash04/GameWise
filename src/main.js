@@ -1861,6 +1861,35 @@ function spawnBreadboard() {
 
             // Detect breadboard pins (names must start with BB_ )
             // Apply same material settings as Arduino
+            // Detect breadboard pins (names must start with BB_ )
+            breadboard.traverse((obj) => {
+                if (obj.type === "Object3D" && obj.name.startsWith("BB_")) {
+
+                    obj.userData.isPin = true;
+
+                    // Invisible helper sphere for raycast
+                    const helper = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.03),
+                        new THREE.MeshBasicMaterial({ visible: false })
+                    );
+                    obj.add(helper);
+
+                    // Outline / hover ring
+                    const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+                    const ringMat = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        visible: false,
+                        transparent: true
+                    });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.rotation.x = Math.PI / 2;
+                    obj.add(ring);
+
+                    pinObjects.push(obj);
+                }
+            });
+
+            // Apply same material settings as Arduino
             breadboard.traverse((child) => {
                 if (child instanceof THREE.Mesh && child.material) {
                     const materials = Array.isArray(child.material) ? child.material : [child.material];
