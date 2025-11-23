@@ -1947,7 +1947,8 @@ function updateConnectedWires(component) {
     });
 }
 // Initialize Arduino IDE
-initArduinoIDE();
+// Initialize Arduino IDE with references to wireConnections and components
+initArduinoIDE(wireConnections, components);
 
 // Setup IDE toggle button
 const ideToggleBtn = document.getElementById('ide-toggle-btn');
