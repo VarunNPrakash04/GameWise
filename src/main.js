@@ -720,6 +720,7 @@ window.addEventListener('pointermove', (e) => {
             draggingComponent = null;
             return;
         }
+
         const hit = raycaster.ray.intersectPlane(plane, planeIntersect);
         if (hit) {
             const newPos = hit.clone().add(offset);
@@ -728,6 +729,11 @@ window.addEventListener('pointermove', (e) => {
                 newPos.y = MIN_COMPONENT_Y;
             }
             draggingComponent.position.copy(newPos);
+
+            // LED-specific: Show pin highlights while dragging
+            if (draggingComponent.userData.type === "LED") {
+                highlightNearbyPinsForLED(draggingComponent);
+            }
 
             // Update connected wires
             updateConnectedWires(draggingComponent);
@@ -1835,6 +1841,13 @@ window.addEventListener("pointerup", (e) => {
 function snapToNearestPin(component) {
     if (component.userData.type === "BREADBOARD") return;
 
+    // Special handling for LED - snap both legs
+    if (component.userData.type === "LED") {
+        snapLEDToNearestPins(component);
+        return;
+    }
+
+    // Original snapping logic for other components
     let compPos = new THREE.Vector3();
     component.getWorldPosition(compPos);
 
@@ -1865,6 +1878,224 @@ function snapToNearestPin(component) {
     console.log(component.userData.type, "snapped to", nearest.name);
 }
 
+// LED-specific snapping - snaps both legs to breadboard pins
+function snapLEDToNearestPins(led) {
+    // Find the LED legs in the model
+    let longLeg = null;
+    let shortLeg = null;
+
+    led.traverse((child) => {
+        if (child.name === 'LED_Leg_Long' || child.name.includes('Long')) {
+            longLeg = child;
+        }
+        if (child.name === 'LED_Leg_Short' || child.name.includes('Short')) {
+            shortLeg = child;
+        }
+    });
+
+    if (!longLeg || !shortLeg) {
+        console.warn("LED legs not found in model. Expected 'LED_Leg_Long' and 'LED_Leg_Short'");
+        return;
+    }
+
+    // Get world positions of both legs
+    const longLegPos = new THREE.Vector3();
+    const shortLegPos = new THREE.Vector3();
+    longLeg.getWorldPosition(longLegPos);
+    shortLeg.getWorldPosition(shortLegPos);
+
+    // Find nearest breadboard pins for each leg
+    let nearestLongPin = null;
+    let nearestShortPin = null;
+    let minLongDist = Infinity;
+    let minShortDist = Infinity;
+
+    // Only snap to breadboard pins (not Arduino pins)
+    const breadboardPins = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root && root.userData.type === 'BREADBOARD';
+    });
+
+    breadboardPins.forEach(pin => {
+        const pinPos = new THREE.Vector3();
+        pin.getWorldPosition(pinPos);
+
+        const longDist = longLegPos.distanceTo(pinPos);
+        const shortDist = shortLegPos.distanceTo(pinPos);
+
+        if (longDist < minLongDist && longDist < 0.5) {
+            minLongDist = longDist;
+            nearestLongPin = pin;
+        }
+
+        if (shortDist < minShortDist && shortDist < 0.5) {
+            minShortDist = shortDist;
+            nearestShortPin = pin;
+        }
+    });
+
+    // Only snap if both legs found nearby pins and they're different pins
+    if (nearestLongPin && nearestShortPin && nearestLongPin !== nearestShortPin) {
+        // Get pin world positions
+        const pin1Pos = new THREE.Vector3();
+        const pin2Pos = new THREE.Vector3();
+        nearestLongPin.getWorldPosition(pin1Pos);
+        nearestShortPin.getWorldPosition(pin2Pos);
+
+        // Calculate midpoint between the two pins
+        const midpoint = new THREE.Vector3();
+        midpoint.addVectors(pin1Pos, pin2Pos).multiplyScalar(0.5);
+
+        // Magnetic snap effect - smooth animation
+        const currentPos = led.position.clone();
+        const snapDistance = currentPos.distanceTo(midpoint);
+
+        if (snapDistance > 0.01) {
+            // Lerp for smooth magnetic effect
+            led.position.lerp(midpoint, 0.3);
+        } else {
+            // Snap exactly when very close
+            led.position.copy(midpoint);
+        }
+
+        // Calculate rotation to align LED with pin direction
+        const direction = new THREE.Vector3();
+        direction.subVectors(pin2Pos, pin1Pos).normalize();
+
+        // Calculate angle in XZ plane
+        const angle = Math.atan2(direction.x, direction.z);
+        led.rotation.y = angle;
+
+        // Store snapped pins
+        led.userData.snappedPins = {
+            long: nearestLongPin.name,
+            short: nearestShortPin.name
+        };
+
+        // Keep black circles visible on snapped pins (persistent highlight)
+        if (nearestLongPin.children && nearestLongPin.children[1]) {
+            nearestLongPin.children[1].material.color.set(0x000000);
+            nearestLongPin.children[1].material.visible = true;
+        }
+        if (nearestShortPin.children && nearestShortPin.children[1]) {
+            nearestShortPin.children[1].material.color.set(0x000000);
+            nearestShortPin.children[1].material.visible = true;
+        }
+
+        console.log(`LED snapped: Long leg → ${nearestLongPin.name}, Short leg → ${nearestShortPin.name}`);
+    } else {
+        console.log("LED not close enough to breadboard pins for snapping");
+    }
+}
+// Highlight breadboard pins when LED legs are near them
+function highlightNearbyPinsForLED(led) {
+    // Find the LED legs in the model - try multiple naming patterns
+    let longLeg = null;
+    let shortLeg = null;
+
+    led.traverse((child) => {
+        const name = child.name.toLowerCase();
+
+        // Check for various naming patterns
+        if (name.includes('long') || name.includes('anode') || name === 'led_leg_long') {
+            longLeg = child;
+            console.log("Found long leg:", child.name);
+        }
+        if (name.includes('short') || name.includes('cathode') || name === 'led_leg_short') {
+            shortLeg = child;
+            console.log("Found short leg:", child.name);
+        }
+    });
+
+    // Fallback: use the helper objects we created earlier (anode/cathode)
+    if (!longLeg || !shortLeg) {
+        led.traverse((child) => {
+            if (child.name === 'anode') {
+                longLeg = child;
+                console.log("Using anode helper as long leg");
+            }
+            if (child.name === 'cathode') {
+                shortLeg = child;
+                console.log("Using cathode helper as short leg");
+            }
+        });
+    }
+
+    if (!longLeg || !shortLeg) {
+        console.warn("LED legs not found. Available objects:",
+            Array.from(new Set(led.children.map(c => c.name))).join(', '));
+        return;
+    }
+
+    // Get world positions of both legs
+    const longLegPos = new THREE.Vector3();
+    const shortLegPos = new THREE.Vector3();
+    longLeg.getWorldPosition(longLegPos);
+    shortLeg.getWorldPosition(shortLegPos);
+
+    // Only check breadboard pins
+    const breadboardPins = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root && root.userData.type === 'BREADBOARD';
+    });
+
+    // Reset all breadboard pin highlights first (unless they have wires or LEDs)
+    breadboardPins.forEach(pin => {
+        if (pin.children && pin.children[1]) {
+            // Only hide if no wires connected and not currently snapped to LED
+            const hasWire = wires.some(w =>
+                w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+            );
+            const hasLED = components.some(comp => {
+                if (comp.userData.type !== 'LED' || comp === led) return false;
+                const snapped = comp.userData.snappedPins;
+                return snapped && (snapped.long === pin.name || snapped.short === pin.name);
+            });
+
+            if (!hasWire && !hasLED) {
+                pin.children[1].material.visible = false;
+            }
+        }
+    });
+
+    // Find and highlight nearest pins for each leg
+    let nearestLongPin = null;
+    let nearestShortPin = null;
+    let minLongDist = Infinity;
+    let minShortDist = Infinity;
+
+    breadboardPins.forEach(pin => {
+        const pinPos = new THREE.Vector3();
+        pin.getWorldPosition(pinPos);
+
+        const longDist = longLegPos.distanceTo(pinPos);
+        const shortDist = shortLegPos.distanceTo(pinPos);
+
+        if (longDist < minLongDist && longDist < 0.5) {
+            minLongDist = longDist;
+            nearestLongPin = pin;
+        }
+
+        if (shortDist < minShortDist && shortDist < 0.5) {
+            minShortDist = shortDist;
+            nearestShortPin = pin;
+        }
+    });
+
+    // Highlight the nearest pins with black circles
+    if (nearestLongPin && nearestLongPin.children && nearestLongPin.children[1]) {
+        nearestLongPin.children[1].material.color.set(0x000000); // Black
+        nearestLongPin.children[1].material.visible = true;
+        console.log("Highlighting long leg pin:", nearestLongPin.name);
+    }
+
+    if (nearestShortPin && nearestShortPin !== nearestLongPin &&
+        nearestShortPin.children && nearestShortPin.children[1]) {
+        nearestShortPin.children[1].material.color.set(0x000000); // Black
+        nearestShortPin.children[1].material.visible = true;
+        console.log("Highlighting short leg pin:", nearestShortPin.name);
+    }
+}
 // Helper to find the root component from a raycast hit object
 function findComponentRoot(obj) {
     console.log('Finding root for:', obj.name || obj.type, 'userData:', obj.userData);
