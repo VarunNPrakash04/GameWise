@@ -1,0 +1,173 @@
+/* Arduino IDE Panel Styles */
+
+.arduino-ide-panel {
+    position: fixed;
+    top: 0;
+    right: -450px;
+    /* Hidden by default */
+    width: 450px;
+    height: 100vh;
+    background: #1e1e1e;
+    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.arduino-ide-panel.open {
+    right: 0;
+}
+
+/* IDE Header */
+.ide-header {
+    background: #252526;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #3e3e42;
+}
+
+.ide-header h3 {
+    margin: 0;
+    color: #00d9ff;
+    font-size: 18px;
+    font-weight: 600;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.ide-close-btn {
+    background: transparent;
+    border: none;
+    color: #cccccc;
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.ide-close-btn:hover {
+    background: #3e3e42;
+    color: #ffffff;
+}
+
+/* Editor Container */
+.arduino-editor {
+    flex: 1;
+    overflow: hidden;
+    background: #1e1e1e;
+}
+
+/* IDE Footer */
+.ide-footer {
+    background: #252526;
+    padding: 15px 20px;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #3e3e42;
+}
+
+.ide-btn {
+    flex: 1;
+    padding: 10px 15px;
+    background: #0e639c;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.ide-btn:hover {
+    background: #1177bb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(14, 99, 156, 0.4);
+}
+
+.ide-btn:active {
+    transform: translateY(0);
+}
+
+/* IDE Toggle Button (in main UI) */
+/* IDE Toggle Button (in main UI) */
+/* IDE Toggle Button (in main UI) */
+#ide-toggle-btn {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #67bbfb;
+    color: #ffffff;
+    border: none;
+    padding: 0;
+    width: 70px;
+    height: 120px;
+    cursor: pointer;
+    z-index: 999;
+    transition: all 0.3s;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    text-orientation: mixed;
+
+    /* Triangle shape using clip-path */
+    clip-path: polygon(100% 0%, 0% 50%, 100% 100%);
+
+    box-shadow: -3px 0 10px rgba(19, 85, 226, 0.3);
+
+    /* Center the text */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-right: 5px;
+}
+
+#ide-toggle-btn:hover {
+    background: #aaaaaa;
+    transform: translateY(-50%) translateX(-5px);
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.4);
+}
+
+#ide-toggle-btn.ide-open {
+    right: 450px;
+    background: #495af2;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    #ide-toggle-btn.ide-open {
+        right: 0;
+    }
+}
+
+#ide-toggle-btn:hover {
+    transform: translateY(-50%) translateX(-5px);
+    box-shadow: -5px 5px 20px rgba(0, 102, 255, 0.6);
+}
+
+#ide-toggle-btn.ide-open {
+    right: 450px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .arduino-ide-panel {
+        width: 100%;
+        right: -100%;
+    }
+
+    #ide-toggle-btn.ide-open {
+        right: 0;
+    }
+}

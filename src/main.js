@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { initArduinoIDE, toggleIDE } from './arduinoIDE.js';
 import { initShuffle } from './Shuffle.js';
 import {
     createBreadboardIcon,
@@ -1925,5 +1926,16 @@ function updateConnectedWires(component) {
         if (componentPins.includes(fromPin) || componentPins.includes(toPin)) {
             updateWireGeometry(wire);
         }
+    });
+}
+// Initialize Arduino IDE
+initArduinoIDE();
+
+// Setup IDE toggle button
+const ideToggleBtn = document.getElementById('ide-toggle-btn');
+if (ideToggleBtn) {
+    ideToggleBtn.addEventListener('click', () => {
+        toggleIDE();
+        ideToggleBtn.classList.toggle('ide-open');
     });
 }
