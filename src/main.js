@@ -11,6 +11,7 @@ import {
     isIconDragging,
     getIcon
 } from './breadboardRotation.js';
+import { createRoomBackground } from './roomBackground.js';
 
 // SPLASH SCREEN HANDLING
 const splashScreen = document.getElementById('splashScreen');
@@ -166,8 +167,8 @@ function createResistorPlaceholder() {
 
 // SCENE SETUP
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a1a); // Darker background for Material Preview mode
-scene.fog = new THREE.Fog(0x1a1a1a, 15, 60); // Subtle fog for depth
+scene.background = new THREE.Color(0x1a1a1a);
+scene.fog = new THREE.Fog(0x1a1a1a, 15, 60);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(5, 4, 6);
@@ -183,6 +184,22 @@ renderer.domElement.style.cursor = 'default';
 // CONTROLS
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+
+// Create 3D room and read FLOOR_Y
+const room = createRoomBackground(scene);
+const FLOOR_Y = typeof room?.FLOOR_Y === 'number' ? room.FLOOR_Y : -2;
+
+// Center orbit on workspace (near origin)
+controls.target.set(0, 1.0, 0);
+controls.update();
+
+// Prevent camera from pitching below the horizontal plane (so you can't look under the tiles)
+controls.minPolarAngle = 0.08; // allow looking slightly up
+controls.maxPolarAngle = Math.PI / 2 - 0.03; // stop just above horizon - prevents below-floor view
+
+// Limit zoom distance to reasonable range
+controls.minDistance = 1.2;
+controls.maxDistance = 100;
 
 // LIGHTING SETUP - Material Preview Mode (Blender-style)
 // Strong hemisphere light for even, environment-based lighting (like Blender's Material Preview)
@@ -225,69 +242,9 @@ backLight.position.set(0, 8, -10);
 backLight.castShadow = false;
 scene.add(backLight);
 
-// GROUND PLANE with grid texture (very prominent - Material Preview style)
-function createGridTexture(size = 512) {
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext('2d');
+// CREATE 3D ROOM BACKGROUND
+createRoomBackground(scene);
 
-    // Fill with darker background for maximum contrast
-    context.fillStyle = '#0f0f0f';
-    context.fillRect(0, 0, size, size);
-
-    // Draw very prominent grid lines (like Blender's Material Preview)
-    context.strokeStyle = '#707070'; // Much brighter grid lines
-    context.lineWidth = 2; // Thicker lines for visibility
-
-    const gridSize = 32;
-    for (let i = 0; i <= size; i += gridSize) {
-        context.beginPath();
-        context.moveTo(i, 0);
-        context.lineTo(i, size);
-        context.stroke();
-
-        context.beginPath();
-        context.moveTo(0, i);
-        context.lineTo(size, i);
-        context.stroke();
-    }
-
-    // Add very bright center lines for reference (like Blender)
-    context.strokeStyle = '#a0a0a0'; // Very bright center lines
-    context.lineWidth = 2.5; // Even thicker center lines
-    const center = size / 2;
-    context.beginPath();
-    context.moveTo(center, 0);
-    context.lineTo(center, size);
-    context.stroke();
-    context.beginPath();
-    context.moveTo(0, center);
-    context.lineTo(size, center);
-    context.stroke();
-
-    return new THREE.CanvasTexture(canvas);
-}
-
-const groundGeometry = new THREE.PlaneGeometry(20, 20);
-const gridTexture = createGridTexture(512);
-gridTexture.wrapS = THREE.RepeatWrapping;
-gridTexture.wrapT = THREE.RepeatWrapping;
-gridTexture.repeat.set(10, 10);
-
-const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0x151515, // Darker base for maximum grid contrast
-    map: gridTexture,
-    roughness: 0.6,
-    metalness: 0.05,
-    emissive: 0x000000,
-    emissiveIntensity: 0
-});
-const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -2;
-ground.receiveShadow = false; // No shadows in Material Preview mode
-scene.add(ground);
 
 // RAYCASTER
 const raycaster = new THREE.Raycaster();
@@ -703,7 +660,7 @@ window.addEventListener('pointermove', (e) => {
 
     // Handle wire dragging from pin
     if (draggingWireFromPin && wireMode) {
-        // Get mouse position in 3D space (project onto a plane)
+        // Get mouse position in 3D space (projected onto a plane)
         // Update plane if needed (in case camera moved)
         const pinPos = new THREE.Vector3();
         draggingWireFromPin.getWorldPosition(pinPos);
@@ -1778,6 +1735,15 @@ function updateMouse(event) {
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
+
+    // Safety clamp: keep camera above the floor by a small margin
+    const minCameraY = FLOOR_Y + 0.25;
+    if (camera.position.y < minCameraY) {
+        camera.position.y = minCameraY;
+        // ensure camera doesn't clip through when we adjust y
+        controls.update();
+    }
+
     renderer.render(scene, camera);
 }
 animate();
