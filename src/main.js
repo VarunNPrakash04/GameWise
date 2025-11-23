@@ -129,9 +129,28 @@ splashTimeout = setTimeout(() => {
 
 //Create Component Placeholders
 function createLEDPlaceholder() {
+    // Create LED body
     const geo = new THREE.SphereGeometry(0.15, 32, 32);
     const mat = new THREE.MeshStandardMaterial({ color: "red" });
-    const led = new THREE.Mesh(geo, mat);
+    const ledBody = new THREE.Mesh(geo, mat);
+
+    // Create LED group to hold body and legs
+    const led = new THREE.Group();
+    led.add(ledBody);
+
+    // Create two legs (anode and cathode)
+    const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8);
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+
+    const anodeLeg = new THREE.Mesh(legGeo, legMat);
+    anodeLeg.position.set(-0.1, -0.25, 0);
+    anodeLeg.name = 'anode';
+    led.add(anodeLeg);
+
+    const cathodeLeg = new THREE.Mesh(legGeo, legMat.clone());
+    cathodeLeg.position.set(0.1, -0.25, 0);
+    cathodeLeg.name = 'cathode';
+    led.add(cathodeLeg);
 
     led.userData = {
         type: "LED",
@@ -141,10 +160,9 @@ function createLEDPlaceholder() {
         }
     };
 
-    led.position.set(0, 1, 0); // spawn in air, above board
+    led.position.set(0, 1, 0);
     return led;
 }
-
 function createResistorPlaceholder() {
     const geo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 16);
     const mat = new THREE.MeshStandardMaterial({ color: "yellow" });
@@ -974,9 +992,9 @@ window.addEventListener('pointerdown', (e) => {
             }
             // Select component for deletion and start dragging
             deselectComponent();
-            selectedComponent = compHit.object;
-            draggingComponent = compHit.object;
-            highlightComponent(selectedComponent, true);
+            selectedComponent = rootComponent;
+            draggingComponent = rootComponent;
+            highlightComponent(selectedComponent, false);
 
             // Disable OrbitControls to prevent Arduino from moving
             controls.enabled = false;
@@ -1755,15 +1773,17 @@ function snapToNearestPin(component) {
 
 // Helper to find the root component from a raycast hit object
 function findComponentRoot(obj) {
+    console.log('Finding root for:', obj.name || obj.type, 'userData:', obj.userData);
     while (obj) {
         if (obj.userData && obj.userData.type) {
+            console.log('Found root:', obj.userData.type);
             return obj;
         }
         obj = obj.parent;
     }
+    console.log('No root found');
     return null;
 }
-
 //Update Mouse
 function updateMouse(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
