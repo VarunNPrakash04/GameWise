@@ -1,7 +1,16 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { initArduinoIDE, toggleIDE } from './arduinoIDE.js';
 import { initShuffle } from './Shuffle.js';
+import {
+    createBreadboardIcon,
+    startIconDrag,
+    stopIconDrag,
+    updateMouseRotation,
+    isIconDragging,
+    getIcon
+} from './breadboardRotation.js';
 
 // SPLASH SCREEN HANDLING
 const splashScreen = document.getElementById('splashScreen');
@@ -354,6 +363,7 @@ moveBoardBtn.addEventListener("click", () => {
         // Lock camera controls
         controls.enabled = false;
         console.log("🔒 Camera locked - Move Board mode ON");
+        // Enable rotation
     } else {
         moveBoardBtn.textContent = "Move Board";
         moveBoardBtn.classList.remove("active");
@@ -615,6 +625,12 @@ loader.load('/Arduino.glb', (gltf) => {
 
 // HOVER PIN and DRAG COMPONENT
 window.addEventListener('pointermove', (e) => {
+    // Handle rotation icon dragging
+    if (isIconDragging() && breadboard) {
+        updateMouseRotation(breadboard, e.clientX, updateConnectedWires);
+        return;
+    }
+
     updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
 
@@ -902,6 +918,17 @@ window.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerdown', (e) => {
     updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
+    // Check if clicked on rotation icon
+    if (breadboardMoveMode) {
+        const icon = getIcon();
+        if (icon) {
+            const iconIntersects = raycaster.intersectObject(icon, true);
+            if (iconIntersects.length > 0) {
+                startIconDrag(e.clientX);
+                return;
+            }
+        }
+    }
 
     // 1. Check if clicked on a component (when not in wire mode)
     if (true) {
@@ -1076,6 +1103,11 @@ window.addEventListener('pointerdown', (e) => {
 
 // POINTER UP HANDLER - Finalize wire connection
 window.addEventListener('pointerup', (e) => {
+    // Stop icon dragging
+    if (isIconDragging()) {
+        stopIconDrag();
+        return;
+    }
     // Handle wire dragging completion
     if (draggingWireFromPin && wireMode) {
         updateMouse(e);
@@ -1743,6 +1775,8 @@ function updateMouse(event) {
 
 
 // LOOP
+// LOOP
+// LOOP
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
@@ -1840,6 +1874,7 @@ function spawnBreadboard() {
                     );
                     obj.add(helper);
 
+
                     // Outline / hover ring
                     const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
                     const ringMat = new THREE.MeshBasicMaterial({
@@ -1856,11 +1891,12 @@ function spawnBreadboard() {
             });
 
             // Hide loading
+            // Create the rotation icon
+            createBreadboardIcon(breadboard);
+            // Hide loading
             loadingOverlay.classList.add("hidden");
-
             // Show move button
             moveBoardBtn.style.display = "block";
-
             console.log("Breadboard spawned");
         });
     }, 1000);
@@ -1890,5 +1926,16 @@ function updateConnectedWires(component) {
         if (componentPins.includes(fromPin) || componentPins.includes(toPin)) {
             updateWireGeometry(wire);
         }
+    });
+}
+// Initialize Arduino IDE
+initArduinoIDE();
+
+// Setup IDE toggle button
+const ideToggleBtn = document.getElementById('ide-toggle-btn');
+if (ideToggleBtn) {
+    ideToggleBtn.addEventListener('click', () => {
+        toggleIDE();
+        ideToggleBtn.classList.toggle('ide-open');
     });
 }

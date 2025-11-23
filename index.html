@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-
+  <link rel="stylesheet" href="/src/arduinoIDE.css">
   <style>
     body {
       margin: 0;
@@ -898,8 +898,26 @@ background: #0066ff;
             Breadboard</button>
         </div>
     </div>
+<<<<<<< HEAD
     <div id="loadingOverlay" class="hidden">Adding Breadboard...</div>
     <script type="module" src="/src/main.js"></script>
+=======
+
+    <div id="pinLabel"></div>
+
+    <div id="sidebar">
+      <h3>Components</h3>
+      <button class="spawn" data-type="LED">Add LED</button>
+      <button class="spawn" data-type="RESISTOR">Add Resistor</button>
+      <button class="spawn" data-type="BREADBOARD">Add Breadboard</button>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="hidden">Adding Breadboard...</div>
+  <button id="ide-toggle-btn">CODE</button>
+
+  <script type="module" src="/src/main.js"></script>
+>>>>>>> 609307c198b4c545574e2dac5d3472da7b85b160
 </body>
 
 </html>
