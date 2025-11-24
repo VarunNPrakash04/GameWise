@@ -227,6 +227,188 @@ function createResistorPlaceholder() {
     return resistor;
 }
 
+// -------------------- BUTTON: model, snapping & animation --------------------
+function createButtonPlaceholder() {
+    const loader = new GLTFLoader();
+    const btnGroup = new THREE.Group();
+
+    btnGroup.userData = {
+        type: "BUTTON",
+        pins: {
+            pin1: null,
+            pin2: null
+        },
+        isPressed: false
+    };
+
+    // default spawn above board so user can drag
+    btnGroup.position.set(0, 1, 0);
+
+    // small invisible helpers in-case empties are missing
+    const helperGeo = new THREE.BoxGeometry(0.02, 0.02, 0.02);
+    const helperMat = new THREE.MeshBasicMaterial({ visible: false });
+
+    const p1h = new THREE.Mesh(helperGeo, helperMat);
+    p1h.name = "Button_Pin_1";
+    btnGroup.add(p1h);
+    const p2h = new THREE.Mesh(helperGeo, helperMat);
+    p2h.name = "Button_Pin_2";
+    btnGroup.add(p2h);
+
+    // Load the model
+    loader.load('/Button.glb', (gltf) => {
+        const model = gltf.scene;
+
+        // find top mesh for press animation (common name 'Button_Top' in your export)
+        let topMesh = null;
+        model.traverse((c) => {
+            if (c.isMesh && (c.name === 'Button_Top' || c.name.toLowerCase().includes('top'))) {
+                topMesh = c;
+            }
+        });
+
+        // find pin empties & register them as pins (Button_Pin_1 & Button_Pin_2)
+        let pin1 = null, pin2 = null;
+        model.traverse((c) => {
+            const n = c.name || '';
+            if (n === 'Button_Pin_1') pin1 = c;
+            if (n === 'Button_Pin_2') pin2 = c;
+        });
+
+        // If empties existed, promote them as pin objects and add raycast helper + ring
+        [pin1, pin2].forEach((pin) => {
+            if (pin) {
+                pin.userData.isPin = true;
+                // invisible sphere for raycast
+                const helper = new THREE.Mesh(new THREE.SphereGeometry(0.03), new THREE.MeshBasicMaterial({ visible: false }));
+                pin.add(helper);
+
+                // ring for visual highlight (hidden by default)
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.015, 8, 16), new THREE.MeshBasicMaterial({ color: 0x000000, visible: false, transparent: true }));
+                ring.rotation.x = Math.PI / 2;
+                pin.add(ring);
+
+                // add into global pinObjects so wires can snap to them
+                pinObjects.push(pin);
+            }
+        });
+
+        // If no empties found, use the small helpers we created earlier (so snapping still works)
+        if (!pin1) pin1 = btnGroup.getObjectByName('Button_Pin_1');
+        if (!pin2) pin2 = btnGroup.getObjectByName('Button_Pin_2');
+
+        // attach pins into userData for easy access
+        btnGroup.userData.pins.pin1 = pin1;
+        btnGroup.userData.pins.pin2 = pin2;
+
+        // add the model under the group and store top mesh for animation
+        btnGroup.add(model);
+        btnGroup.userData._topMesh = topMesh || model; // fallback
+
+        // adjust materials to match preview
+        model.traverse((child) => {
+            if (child.isMesh && child.material) {
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                child.material = mats.map(mat => {
+                    if (mat.isMeshStandardMaterial) {
+                        mat.roughness = Math.min(mat.roughness || 0.5, 0.7);
+                        mat.metalness = Math.min(mat.metalness || 0.1, 0.2);
+                        mat.needsUpdate = true;
+                    }
+                    return mat;
+                });
+                if (child.material.length === 1) child.material = child.material[0];
+            }
+        });
+
+        console.log("Button model loaded with pins:", pin1 ? pin1.name : 'helper1', pin2 ? pin2.name : 'helper2');
+    }, undefined, (err) => {
+        console.error("Failed loading Button.glb:", err);
+    });
+
+    return btnGroup;
+}
+
+// simple immediate press animation (small translation), not dependent on external libs
+function pressButton(button) {
+    if (!button || button.userData.isPressed) return;
+    const top = button.userData._topMesh;
+    if (!top) return;
+
+    button.userData.isPressed = true;
+    // store original position if not stored
+    if (!top.userData._origPos) {
+        top.userData._origPos = top.position.clone();
+    }
+    // move top slightly downward (local)
+    top.position.y = (top.userData._origPos.y || 0) - 0.03;
+}
+
+// release animation (restore)
+function releaseButton(button) {
+    if (!button || !button.userData.isPressed) return;
+    const top = button.userData._topMesh;
+    if (!top) return;
+
+    top.position.copy(top.userData._origPos || new THREE.Vector3());
+    button.userData.isPressed = false;
+}
+
+// SNAPPING specifically for the push-button (snap both pins to two breadboard holes)
+function snapButtonToNearestPins(button) {
+    if (!button) return;
+
+    const pin1Obj = button.userData.pins.pin1;
+    const pin2Obj = button.userData.pins.pin2;
+    if (!pin1Obj || !pin2Obj) return;
+
+    const p1World = new THREE.Vector3();
+    const p2World = new THREE.Vector3();
+    pin1Obj.getWorldPosition(p1World);
+    pin2Obj.getWorldPosition(p2World);
+
+    // consider only breadboard pins for snapping
+    const breadboardPins = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root && root.userData && root.userData.type === 'BREADBOARD';
+    });
+
+    let nearest1 = null, nearest2 = null;
+    let d1 = Infinity, d2 = Infinity;
+    breadboardPins.forEach(pb => {
+        const pos = new THREE.Vector3();
+        pb.getWorldPosition(pos);
+        const dist1 = pos.distanceTo(p1World);
+        const dist2 = pos.distanceTo(p2World);
+        if (dist1 < d1 && dist1 < 0.6) { d1 = dist1; nearest1 = pb; }
+        if (dist2 < d2 && dist2 < 0.6) { d2 = dist2; nearest2 = pb; }
+    });
+
+    if (nearest1 && nearest2 && nearest1 !== nearest2) {
+        const pos1 = new THREE.Vector3(), pos2 = new THREE.Vector3();
+        nearest1.getWorldPosition(pos1);
+        nearest2.getWorldPosition(pos2);
+
+        // position the button group at midpoint and align rotation
+        const midpoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+        button.position.lerp(midpoint, 0.35);
+
+        // align rotation to direction between pins
+        const dir = new THREE.Vector3().subVectors(pos2, pos1).normalize();
+        const angle = Math.atan2(dir.x, dir.z);
+        button.rotation.y = angle;
+
+        // persist snapped pin names
+        button.userData.snappedPins = { pin1: nearest1.name, pin2: nearest2.name };
+
+        // show outlines on those pins
+        if (nearest1.children && nearest1.children[1]) { nearest1.children[1].material.color.set(0x000000); nearest1.children[1].material.visible = true; }
+        if (nearest2.children && nearest2.children[1]) { nearest2.children[1].material.color.set(0x000000); nearest2.children[1].material.visible = true; }
+
+        console.log(`Button snapped: ${nearest1.name} & ${nearest2.name}`);
+    }
+}
+
 // SCENE SETUP
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a1a);
@@ -2170,10 +2352,12 @@ function spawnComponent(type) {
 
     if (type === "LED") obj = createLEDPlaceholder();
     if (type === "RESISTOR") obj = createResistorPlaceholder();
+    if (type === "BUTTON") obj = createButtonPlaceholder();
     if (type === "BREADBOARD") {
         spawnBreadboard();
         return;
-    }
+}
+ 
 
     if (obj) {
         scene.add(obj);
