@@ -1209,6 +1209,26 @@ window.addEventListener('pointerdown', (e) => {
                 // Clear the snapped pins reference
                 delete rootComponent.userData.snappedPins;
             }
+            // Clear old BUTTON pin highlights when picking up BUTTON
+            if (rootComponent.userData.type === "BUTTON" && rootComponent.userData.snappedPins) {
+                const oldSnappedPins = rootComponent.userData.snappedPins;
+                // Find and clear highlights from old pins
+                pinObjects.forEach(pin => {
+                    if (oldSnappedPins.includes(pin.name)) {
+                        if (pin.children && pin.children[1]) {
+                            // Only hide if no wires connected
+                            const hasWire = wires.some(w =>
+                                w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+                            );
+                            if (!hasWire) {
+                                pin.children[1].material.visible = false;
+                            }
+                        }
+                    }
+                });
+                // Clear the snapped pins reference
+                delete rootComponent.userData.snappedPins;
+            }
 
             // Disable OrbitControls to prevent Arduino from moving
             controls.enabled = false;
@@ -2134,7 +2154,17 @@ function highlightNearbyPinsForButton(button) {
         }
     });
 
-    if (legs.length === 0) return;
+    // Fallback: check userData.pins if no legs found via traverse
+    if (legs.length === 0 && button.userData.pins) {
+        Object.values(button.userData.pins).forEach(pin => {
+            if (pin) legs.push(pin);
+        });
+    }
+
+    if (legs.length === 0) {
+        console.log('⚠️ No button legs found for highlighting');
+        return;
+    }
 
     const breadboardPins = pinObjects.filter(pin => {
         const root = findComponentRoot(pin);
@@ -2150,7 +2180,15 @@ function highlightNearbyPinsForButton(button) {
             const hasOtherComponent = components.some(comp => {
                 if (comp === button) return false;
                 const snapped = comp.userData.snappedPins;
-                return snapped && snapped.includes(pin.name);
+                if (!snapped) return false;
+
+                // Handle both array (button) and object (LED) formats
+                if (Array.isArray(snapped)) {
+                    return snapped.includes(pin.name);
+                } else if (typeof snapped === 'object') {
+                    return snapped.long === pin.name || snapped.short === pin.name;
+                }
+                return false;
             });
 
             if (!hasWire && !hasOtherComponent) {
@@ -2298,11 +2336,25 @@ function snapButtonToNearestPins(button) {
             child.name.toLowerCase().includes('terminal')
         ))) {
             legs.push(child);
+            console.log('Found button leg:', child.name, 'isPin:', child.userData.isPin);
         }
     });
 
+    console.log('Total button legs found:', legs.length);
+
     if (legs.length === 0) {
-        console.warn("Button legs not found");
+        console.warn("Button legs not found - checking button.userData.pins");
+        // Fallback: check if pins are stored in userData
+        if (button.userData.pins) {
+            Object.values(button.userData.pins).forEach(pin => {
+                if (pin) legs.push(pin);
+            });
+            console.log('Found legs from userData.pins:', legs.length);
+        }
+    }
+
+    if (legs.length === 0) {
+        console.warn("Button legs still not found");
         return;
     }
 
@@ -2785,18 +2837,25 @@ window.addEventListener('resize', hideWireContextMenu);
 window.addEventListener('scroll', hideWireContextMenu);
 
 
-// ===== LOCAL STORAGE - SAVE/LOAD STATE =====
-
 function saveStateToLocalStorage() {
     try {
         const state = {
-            components: components.map(comp => ({
-                type: comp.userData.type,
-                position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
-                rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
-                scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
-                userData: comp.userData
-            })),
+            components: components.map(comp => {
+                // Clean userData to avoid circular references
+                const cleanUserData = {
+                    type: comp.userData.type,
+                    snappedPins: comp.userData.snappedPins,
+                    // Don't save the 'pins' object as it contains Three.js object references
+                };
+
+                return {
+                    type: comp.userData.type,
+                    position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
+                    rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
+                    scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
+                    userData: cleanUserData
+                };
+            }),
             wires: wires.map(wire => ({
                 id: wire.userData.id,
                 fromPin: wire.userData.fromPin,
@@ -2945,7 +3004,33 @@ function loadStateFromLocalStorage() {
                         console.log(`LED snapping restored: ${compData.userData.snappedPins.long} & ${compData.userData.snappedPins.short}`);
                     }, 1000);
                 }
-            } else if (compData.type === 'RESISTOR') {
+            }
+            else if (compData.type === 'BUTTON') {
+                comp = createButtonPlaceholder();
+                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                comp.userData = compData.userData;
+
+                scene.add(comp);
+                components.push(comp);
+
+                // Restore BUTTON pin highlights if it was snapped
+                if (compData.userData.snappedPins && Array.isArray(compData.userData.snappedPins)) {
+                    setTimeout(() => {
+                        compData.userData.snappedPins.forEach(pinName => {
+                            const pin = pinObjects.find(p => p.name === pinName);
+                            if (pin && pin.children && pin.children[1]) {
+                                pin.children[1].material.color.set(0x000000);
+                                pin.children[1].material.visible = true;
+                            }
+                        });
+                        console.log(`Button snapping restored: ${compData.userData.snappedPins.length} pins`);
+                    }, 1000);
+                }
+
+                console.log('Button restored at', comp.position);
+            }
+            else if (compData.type === 'RESISTOR') {
                 comp = createResistorPlaceholder();
                 comp.position.set(compData.position.x, compData.position.y, compData.position.z);
                 comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
@@ -3010,18 +3095,26 @@ window.clearState = () => {
     console.log('✅ State cleared');
 };
 
-// Initialize menu bar with callbacks
 initMenuBar(
     // Save callback - returns current state
     () => {
         const state = {
-            components: components.map(comp => ({
-                type: comp.userData.type,
-                position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
-                rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
-                scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
-                userData: comp.userData
-            })),
+            components: components.map(comp => {
+                // Clean userData to avoid circular references
+                const cleanUserData = {
+                    type: comp.userData.type,
+                    snappedPins: comp.userData.snappedPins,
+                    // Don't save the 'pins' object as it contains Three.js object references
+                };
+
+                return {
+                    type: comp.userData.type,
+                    position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
+                    rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
+                    scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
+                    userData: cleanUserData
+                };
+            }),
             wires: wires.map(wire => ({
                 id: wire.userData.id,
                 fromPin: wire.userData.fromPin,
@@ -3157,7 +3250,31 @@ initMenuBar(
                 }
 
                 console.log('LED restored at', comp.position);
-            } else if (compData.type === 'RESISTOR') {
+            }
+            else if (compData.type === 'BUTTON') {
+                comp = createButtonPlaceholder();
+                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                comp.userData = compData.userData;
+
+                scene.add(comp);
+                components.push(comp);
+
+                // Restore BUTTON pin highlights if it was snapped
+                if (compData.userData.snappedPins && Array.isArray(compData.userData.snappedPins)) {
+                    setTimeout(() => {
+                        compData.userData.snappedPins.forEach(pinName => {
+                            const pin = pinObjects.find(p => p.name === pinName);
+                            if (pin && pin.children && pin.children[1]) {
+                                pin.children[1].material.color.set(0x000000);
+                                pin.children[1].material.visible = true;
+                            }
+                        });
+                        console.log(`Button snapping restored: ${compData.userData.snappedPins.length} pins`);
+                    }, 1000);
+                }
+            }
+            else if (compData.type === 'RESISTOR') {
                 comp = createResistorPlaceholder();
                 comp.position.set(compData.position.x, compData.position.y, compData.position.z);
                 comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
@@ -3189,3 +3306,209 @@ initMenuBar(
         clearScene();
     }
 );
+
+
+// ===== MANUAL SNAP FEATURE (A key) =====
+
+const manualSnapModal = document.getElementById('manualSnapModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalSubtitle = document.getElementById('modalSubtitle');
+const modalInputs = document.getElementById('modalInputs');
+const modalSnapBtn = document.getElementById('modalSnapBtn');
+const modalCancelBtn = document.getElementById('modalCancelBtn');
+const modalError = document.getElementById('modalError');
+
+let currentSnapComponent = null;
+
+// A key to open manual snap modal
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'a' || e.key === 'A') {
+        if (selectedComponent && (selectedComponent.userData.type === 'LED' || selectedComponent.userData.type === 'BUTTON')) {
+            openManualSnapModal(selectedComponent);
+        }
+    }
+});
+
+function openManualSnapModal(component) {
+    // Check if breadboard exists
+    if (!breadboard) {
+        alert('⚠️ Breadboard not spawned! Please add a breadboard first.');
+        return;
+    }
+
+    currentSnapComponent = component;
+    const type = component.userData.type;
+
+    // Set title
+    modalTitle.textContent = `Snap ${type} to Breadboard Pins`;
+
+    // Create input fields based on component type
+    modalInputs.innerHTML = '';
+
+    if (type === 'LED') {
+        modalInputs.innerHTML = `
+            <div class="modal-input-group">
+                <label>Anode (Long Leg) Pin:</label>
+                <input type="text" id="input_anode" placeholder="e.g., A1, B5, VCC1" />
+            </div>
+            <div class="modal-input-group">
+                <label>Cathode (Short Leg) Pin:</label>
+                <input type="text" id="input_cathode" placeholder="e.g., A2, GND1" />
+            </div>
+        `;
+    } else if (type === 'BUTTON') {
+        modalInputs.innerHTML = `
+            <div class="modal-input-group">
+                <label>Leg 1 Pin:</label>
+                <input type="text" id="input_leg1" placeholder="e.g., A1" />
+            </div>
+            <div class="modal-input-group">
+                <label>Leg 2 Pin:</label>
+                <input type="text" id="input_leg2" placeholder="e.g., A3" />
+            </div>
+            <div class="modal-input-group">
+                <label>Leg 3 Pin:</label>
+                <input type="text" id="input_leg3" placeholder="e.g., D1" />
+            </div>
+            <div class="modal-input-group">
+                <label>Leg 4 Pin:</label>
+                <input type="text" id="input_leg4" placeholder="e.g., D3" />
+            </div>
+        `;
+    }
+
+    modalError.style.display = 'none';
+    manualSnapModal.style.display = 'flex';
+
+    // Focus first input
+    setTimeout(() => {
+        const firstInput = modalInputs.querySelector('input');
+        if (firstInput) firstInput.focus();
+    }, 100);
+}
+
+// Cancel button
+modalCancelBtn.addEventListener('click', () => {
+    manualSnapModal.style.display = 'none';
+    currentSnapComponent = null;
+});
+
+// Snap button
+modalSnapBtn.addEventListener('click', () => {
+    if (!currentSnapComponent) return;
+
+    const type = currentSnapComponent.userData.type;
+    const pinNames = [];
+    const inputs = modalInputs.querySelectorAll('input');
+
+    // Collect pin names and add BB_ prefix
+    inputs.forEach(input => {
+        let pinName = input.value.trim().toUpperCase();
+        // Auto-add BB_ prefix if not already present
+        if (!pinName.startsWith('BB_') && !pinName.startsWith('PIN_')) {
+            pinName = 'BB_' + pinName;
+        }
+        pinNames.push(pinName);
+    });
+
+    // Validate pin names
+    const validPins = [];
+    for (const pinName of pinNames) {
+        if (!pinName) {
+            showModalError('Please fill in all pin fields');
+            return;
+        }
+
+        // Find the pin in pinObjects
+        const pin = pinObjects.find(p => p.name === pinName);
+        if (!pin) {
+            showModalError(`Pin "${pinName}" not found. Check breadboard pin names.`);
+            return;
+        }
+
+        // Check if pin belongs to breadboard
+        const root = findComponentRoot(pin);
+        if (!root || root.userData.type !== 'BREADBOARD') {
+            showModalError(`Pin "${pinName}" is not a breadboard pin`);
+            return;
+        }
+
+        validPins.push(pin);
+    }
+
+    // All pins valid - snap the component
+    if (type === 'LED') {
+        manualSnapLED(currentSnapComponent, validPins[0], validPins[1]);
+    } else if (type === 'BUTTON') {
+        manualSnapButton(currentSnapComponent, validPins);
+    }
+
+    manualSnapModal.style.display = 'none';
+    currentSnapComponent = null;
+});
+
+function showModalError(message) {
+    modalError.textContent = message;
+    modalError.style.display = 'block';
+}
+
+function manualSnapLED(led, anodePin, cathodePin) {
+    const p1 = new THREE.Vector3();
+    const p2 = new THREE.Vector3();
+    anodePin.getWorldPosition(p1);
+    cathodePin.getWorldPosition(p2);
+
+    // Position LED at midpoint
+    const midpoint = p1.clone().lerp(p2, 0.5);
+    led.position.copy(midpoint);
+
+    // Calculate rotation to align with pins
+    const direction = new THREE.Vector3().subVectors(p2, p1);
+    const angle = Math.atan2(direction.x, direction.z);
+    led.rotation.y = angle;
+
+    // Store snapped pins
+    led.userData.snappedPins = {
+        long: anodePin.name,
+        short: cathodePin.name
+    };
+
+    // Highlight pins
+    if (anodePin.children && anodePin.children[1]) {
+        anodePin.children[1].material.color.set(0x000000);
+        anodePin.children[1].material.visible = true;
+    }
+    if (cathodePin.children && cathodePin.children[1]) {
+        cathodePin.children[1].material.color.set(0x000000);
+        cathodePin.children[1].material.visible = true;
+    }
+
+    console.log(`✅ LED manually snapped to ${anodePin.name} & ${cathodePin.name}`);
+}
+
+function manualSnapButton(button, pins) {
+    // Calculate average position
+    const avgPos = new THREE.Vector3();
+    pins.forEach(pin => {
+        const pos = new THREE.Vector3();
+        pin.getWorldPosition(pos);
+        avgPos.add(pos);
+    });
+    avgPos.divideScalar(pins.length);
+
+    // Snap button
+    button.position.copy(avgPos);
+
+    // Store snapped pins
+    button.userData.snappedPins = pins.map(p => p.name);
+
+    // Highlight pins
+    pins.forEach(pin => {
+        if (pin.children && pin.children[1]) {
+            pin.children[1].material.color.set(0x000000);
+            pin.children[1].material.visible = true;
+        }
+    });
+
+    console.log(`✅ Button manually snapped to ${pins.length} pins:`, button.userData.snappedPins);
+}
