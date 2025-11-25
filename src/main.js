@@ -1129,6 +1129,7 @@ window.addEventListener('pointermove', (e) => {
 
 // CLICK HANDLER (pin / wire selection / component dragging)
 window.addEventListener('pointerdown', (e) => {
+    console.log('👆 Pointerdown event fired, wireMode:', wireMode);
     updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
 
@@ -1145,8 +1146,9 @@ window.addEventListener('pointerdown', (e) => {
     }
 
 
-    // 1. Check if clicked on a component (when not in wire mode)
-    if (true) {
+    // 1. Check if clicked on a component (skip if in wire mode to allow pin clicks)
+    if (!wireMode) {
+        console.log('🔍 Checking components...')
         const intersects = raycaster.intersectObjects(components, true);
         let compHit = null;
         let rootComponent = null;
@@ -1171,6 +1173,7 @@ window.addEventListener('pointerdown', (e) => {
         }
 
         if (rootComponent) {
+            console.log('📦 Component found:', rootComponent.userData.type);
             const obj = rootComponent;
 
             // Special handling for breadboard
@@ -1321,10 +1324,33 @@ window.addEventListener('pointerdown', (e) => {
     if (!wireMode) return;
 
     // 6. If wire mode ON → check pin click for drag-to-connect
+    console.log('🔍 Wire mode ON, checking for pins. Total pinObjects:', pinObjects.length);
     const pinIntersect = raycaster.intersectObjects(pinObjects, true);
-    if (!pinIntersect.length) return;
+    console.log('📍 Pin intersects found:', pinIntersect.length);
+    if (!pinIntersect.length) {
+        console.log('❌ No pins detected at click position');
+        return;
+    }
 
-    const pin = pinIntersect[0].object.parent;
+    // Find the actual pin object (could be the hit object itself or its parent)
+    let pin = pinIntersect[0].object;
+
+    // If we hit a helper/child, traverse up to find the pin
+    while (pin && !pin.userData.isPin) {
+        pin = pin.parent;
+    }
+
+    // If still no pin found, try the direct parent (for Arduino pins)
+    if (!pin || !pin.userData.isPin) {
+        pin = pinIntersect[0].object.parent;
+    }
+
+    if (!pin || !pin.userData.isPin) {
+        console.warn('Could not find pin object');
+        return;
+    }
+
+    console.log('✅ Pin found:', pin.name, 'Type:', pin.userData.isPin);
 
     // Check if this pin already has a wire connected
     const existingWire = wires.find(w =>
@@ -2574,6 +2600,7 @@ function spawnBreadboard() {
                         new THREE.SphereGeometry(0.03),
                         new THREE.MeshBasicMaterial({ visible: false })
                     );
+                    helper.position.set(0, 0, 0); // Center it on the pin
                     obj.add(helper);
 
                     // Outline / hover ring
