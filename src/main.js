@@ -259,6 +259,9 @@ function createButtonPlaceholder() {
     loader.load('/Button.glb', (gltf) => {
         const model = gltf.scene;
 
+        // SCALE DOWN THE MODEL HERE (match LED size)
+        model.scale.set(0.15, 0.15, 0.15);
+
         // find top mesh for press animation (common name 'Button_Top' in your export)
         let topMesh = null;
         model.traverse((c) => {
@@ -360,12 +363,20 @@ function snapButtonToNearestPins(button) {
 
     const pin1Obj = button.userData.pins.pin1;
     const pin2Obj = button.userData.pins.pin2;
-    if (!pin1Obj || !pin2Obj) return;
+    if (!pin1Obj || !pin2Obj) {
+        console.warn("Button pins not found in model");
+        return;
+    }
 
     const p1World = new THREE.Vector3();
     const p2World = new THREE.Vector3();
     pin1Obj.getWorldPosition(p1World);
     pin2Obj.getWorldPosition(p2World);
+
+
+    console.log("Button Pin 1 World Position:", p1World);
+    console.log("Button Pin 2 World Position:", p2World);
+    console.log("Number of breadboard pins:", breadboardPins.length);
 
     // consider only breadboard pins for snapping
     const breadboardPins = pinObjects.filter(pin => {
@@ -380,32 +391,59 @@ function snapButtonToNearestPins(button) {
         pb.getWorldPosition(pos);
         const dist1 = pos.distanceTo(p1World);
         const dist2 = pos.distanceTo(p2World);
-        if (dist1 < d1 && dist1 < 0.6) { d1 = dist1; nearest1 = pb; }
-        if (dist2 < d2 && dist2 < 0.6) { d2 = dist2; nearest2 = pb; }
+        if (dist1 < d1 && dist1 < 1.0) { d1 = dist1; nearest1 = pb; }
+        if (dist2 < d2 && dist2 < 1.0) { d2 = dist2; nearest2 = pb; }
     });
 
+    // Only snap if both pins found nearby breadboard pins and they're different pins
     if (nearest1 && nearest2 && nearest1 !== nearest2) {
         const pos1 = new THREE.Vector3(), pos2 = new THREE.Vector3();
         nearest1.getWorldPosition(pos1);
         nearest2.getWorldPosition(pos2);
 
-        // position the button group at midpoint and align rotation
-        const midpoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
-        button.position.lerp(midpoint, 0.35);
+        // Calculate midpoint between the two pins
+        const midpoint = new THREE.Vector3();
+        midpoint.addVectors(pos1, pos2).multiplyScalar(0.5);
 
-        // align rotation to direction between pins
-        const dir = new THREE.Vector3().subVectors(pos2, pos1).normalize();
-        const angle = Math.atan2(dir.x, dir.z);
+        // Magnetic snap effect - smooth animation (same as LED)
+        const currentPos = button.position.clone();
+        const snapDistance = currentPos.distanceTo(midpoint);
+
+        if (snapDistance > 0.01) {
+            // Lerp for smooth magnetic effect
+            button.position.lerp(midpoint, 0.3);
+        } else {
+            // Snap exactly when very close
+            button.position.copy(midpoint);
+        }
+
+        // Calculate rotation to align button with pin direction
+        const direction = new THREE.Vector3();
+        direction.subVectors(pos2, pos1).normalize();
+
+        // Calculate angle in XZ plane
+        const angle = Math.atan2(direction.x, direction.z);
         button.rotation.y = angle;
 
-        // persist snapped pin names
-        button.userData.snappedPins = { pin1: nearest1.name, pin2: nearest2.name };
+        // Store snapped pins
+        button.userData.snappedPins = {
+            pin1: nearest1.name,
+            pin2: nearest2.name
+        };
 
-        // show outlines on those pins
-        if (nearest1.children && nearest1.children[1]) { nearest1.children[1].material.color.set(0x000000); nearest1.children[1].material.visible = true; }
-        if (nearest2.children && nearest2.children[1]) { nearest2.children[1].material.color.set(0x000000); nearest2.children[1].material.visible = true; }
+        // Keep black circles visible on snapped pins (persistent highlight)
+        if (nearest1.children && nearest1.children[1]) {
+            nearest1.children[1].material.color.set(0x000000);
+            nearest1.children[1].material.visible = true;
+        }
+        if (nearest2.children && nearest2.children[1]) {
+            nearest2.children[1].material.color.set(0x000000);
+            nearest2.children[1].material.visible = true;
+        }
 
-        console.log(`Button snapped: ${nearest1.name} & ${nearest2.name}`);
+        console.log(`Button snapped: Pin1 → ${nearest1.name}, Pin2 → ${nearest2.name}`);
+    } else {
+        console.log("Button not close enough to breadboard pins for snapping");
     }
 }
 
@@ -2029,6 +2067,12 @@ function snapToNearestPin(component) {
         return;
     }
 
+    // Special handling for BUTTON - snap both pins
+    if (component.userData.type === "BUTTON") {
+        snapButtonToNearestPins(component);
+        return;
+    }
+
     // Original snapping logic for other components
     let compPos = new THREE.Vector3();
     component.getWorldPosition(compPos);
@@ -2356,8 +2400,8 @@ function spawnComponent(type) {
     if (type === "BREADBOARD") {
         spawnBreadboard();
         return;
-}
- 
+    }
+
 
     if (obj) {
         scene.add(obj);
