@@ -324,8 +324,14 @@ function createButtonPlaceholder() {
     }, undefined, (error) => {
         console.error('Error loading Button.glb:', error);
     });
-
+    // Add invisible hitbox for easier clicking
+    const hitboxGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+    const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+    hitbox.name = 'ButtonHitbox';
+    btnGroup.add(hitbox);
     return group;
+
 }
 
 // SCENE SETUP
@@ -414,7 +420,7 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 raycaster.params.Points.threshold = 0.5;
 raycaster.params.Line.threshold = 0.5;
-raycaster.params.Mesh.threshold = 0.5;  // Add this line
+raycaster.params.Mesh.threshold = 0.5;
 let arduino = null;
 let pinObjects = [];
 let hoveredPin = null;
@@ -2536,61 +2542,12 @@ function spawnComponent(type) {
     }
 }
 
-// ===== BUTTON PRESS ANIMATION =====
-function pressButton(button) {
-    if (!button || button.userData.isPressed) return;
-
-    // Find the Button_Top mesh
-    let topMesh = null;
-    button.traverse((child) => {
-        if (child.isMesh && child.name === 'Button_Top') {
-            topMesh = child;
-        }
-    });
-
-    if (!topMesh) {
-        console.warn('⚠️ Button_Top mesh not found in button model');
-        return;
-    }
-
-    button.userData.isPressed = true;
-
-    // Store original position if not stored
-    if (!topMesh.userData._origPos) {
-        topMesh.userData._origPos = topMesh.position.clone();
-    }
-
-    // Move top down (press animation) - Z-axis for downward movement
-    // Increased depth to 0.15 for deeper press (half the button)
-    topMesh.position.z = (topMesh.userData._origPos.z || 0) - 0.15;
-
-    console.log('🔘 Button PRESSED! Position:', topMesh.position);
-}
-
-function releaseButton(button) {
-    if (!button || !button.userData.isPressed) return;
-
-    // Find the Button_Top mesh
-    let topMesh = null;
-    button.traverse((child) => {
-        if (child.isMesh && child.name === 'Button_Top') {
-            topMesh = child;
-        }
-    });
-
-    if (!topMesh || !topMesh.userData._origPos) return;
-
-    // Restore original position (spring back up)
-    topMesh.position.copy(topMesh.userData._origPos);
-    button.userData.isPressed = false;
-
-    console.log('🔘 Button RELEASED!');
-}
-
-// Track which button is currently pressed
-let pressedButton = null;
-
-
+// RESIZE
+window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+});
 
 function spawnBreadboard() {
     // Show loading
@@ -2832,6 +2789,7 @@ window.addEventListener('contextmenu', (event) => {
     }
 });
 // Delete button component
+// Delete button component
 function deleteButton(button) {
     if (!button) return;
 
@@ -2840,10 +2798,19 @@ function deleteButton(button) {
     // Remove from components array
     components = components.filter(c => c !== button);
 
-    // Remove from scene
-    scene.remove(button);
+    // Remove from scene - handle both direct children and nested
+    if (button.parent) {
+        button.parent.remove(button);
+    } else {
+        scene.remove(button);
+    }
 
-    // Dispose geometry and materials
+    // Clear any references
+    if (selectedComponent === button) {
+        selectedComponent = null;
+    }
+
+    // Dispose geometry and materials recursively
     button.traverse((child) => {
         if (child.geometry) {
             child.geometry.dispose();
@@ -2857,7 +2824,7 @@ function deleteButton(button) {
         }
     });
 
-    console.log('Button deleted successfully');
+    console.log('Button deleted successfully, components remaining:', components.length);
 }
 // Delete LED component
 function deleteLED(led) {
@@ -3033,34 +3000,6 @@ window.addEventListener('pointerdown', (e) => {
 window.addEventListener('wheel', hideWireContextMenu);
 window.addEventListener('resize', hideWireContextMenu);
 window.addEventListener('scroll', hideWireContextMenu);
-
-// ===== BUTTON PRESS MOUSE HANDLERS =====
-window.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return; // Only left click
-
-    updateMouse(e);
-    raycaster.setFromCamera(mouse, camera);
-
-    const intersects = raycaster.intersectObjects(components, true);
-
-    for (const hit of intersects) {
-        const root = findComponentRoot(hit.object);
-        if (root && root.userData.type === 'BUTTON' && !wireMode) {
-            pressButton(root);
-            pressedButton = root;
-            break;
-        }
-    }
-});
-
-window.addEventListener('mouseup', (e) => {
-    if (e.button !== 0) return;
-
-    if (pressedButton) {
-        releaseButton(pressedButton);
-        pressedButton = null;
-    }
-});
 
 
 function saveStateToLocalStorage() {
