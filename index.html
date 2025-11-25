@@ -1073,22 +1073,21 @@
       <div class="components-container">
         <button id="components-toggle">Components</button>
         <div id="components-menu" aria-hidden="true">
-          <div class="wire-control" id="wireControl">
-            <button id="addWireBtn" class="spawn">Add Wire</button>
-            <!-- Hidden select for backward compatibility with main.js -->
-            <select id="wireColorPicker" style="display: none;">
-              <option value="0xff0000">Red</option>
-              <option value="0x00ff00">Green</option>
-              <option value="0x0000ff">Blue</option>
-              <option value="0xffff00">Yellow</option>
-              <option value="0xff00ff">Magenta</option>
-              <option value="0x00ffff">Cyan</option>
-              <option value="0xffffff">White</option>
-              <option value="0x000000">Black</option>
-            </select>
-            <!-- Custom animated color picker dropdown -->
 
-          </div>
+          <!-- Hidden select for backward compatibility with main.js -->
+          <select id="wireColorPicker" style="display: none;">
+            <option value="0xff0000">Red</option>
+            <option value="0x00ff00">Green</option>
+            <option value="0x0000ff">Blue</option>
+            <option value="0xffff00">Yellow</option>
+            <option value="0xff00ff">Magenta</option>
+            <option value="0x00ffff">Cyan</option>
+            <option value="0xffffff">White</option>
+            <option value="0x000000">Black</option>
+          </select>
+          <!-- Custom animated color picker dropdown -->
+
+          <button id="addWireBtn" class="spawn">Add Wire</button>
           <button class="spawn" data-type="LED">Add LED</button>
           <button class="spawn" data-type="RESISTOR">Add Resistor</button>
           <button class="spawn" data-type="BREADBOARD">Add Breadboard</button>
