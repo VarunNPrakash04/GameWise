@@ -2195,15 +2195,10 @@ function highlightNearbyPinsForButton(button) {
     const legs = [];
 
     button.traverse((child) => {
-        if (child.userData.isPin || (child.name && (
-            child.name.toLowerCase().includes('leg') ||
-            child.name.toLowerCase().includes('pin') ||
-            child.name.toLowerCase().includes('terminal')
-        ))) {
+        if (child.name === 'Button_Pin_1' || child.name === 'Button_Pin_2') {
             legs.push(child);
         }
     });
-
     // Fallback: check userData.pins if no legs found via traverse
     if (legs.length === 0 && button.userData.pins) {
         Object.values(button.userData.pins).forEach(pin => {
@@ -2374,22 +2369,17 @@ function snapLEDToNearestPins(led) {
     }
 }
 
-// BUTTON-specific snapping - snaps all 4 legs to breadboard pins
+// BUTTON-specific snapping - snaps 2 pins to breadboard pins
 function snapButtonToNearestPins(button) {
-    // Find the button legs in the model
+    // Find the button pins in the model (Button_Pin_1 and Button_Pin_2)
     const legs = [];
 
     button.traverse((child) => {
-        if (child.userData.isPin || (child.name && (
-            child.name.toLowerCase().includes('leg') ||
-            child.name.toLowerCase().includes('pin') ||
-            child.name.toLowerCase().includes('terminal')
-        ))) {
+        if (child.name === 'Button_Pin_1' || child.name === 'Button_Pin_2') {
             legs.push(child);
-            console.log('Found button leg:', child.name, 'isPin:', child.userData.isPin);
+            console.log('Found button pin:', child.name);
         }
     });
-
     console.log('Total button legs found:', legs.length);
 
     if (legs.length === 0) {
@@ -2568,6 +2558,118 @@ function spawnComponent(type) {
     }
 }
 
+// ===== BUTTON PRESS ANIMATION =====
+function pressButton(button) {
+    if (!button || button.userData.isPressed) return;
+
+    // Only allow press if button is snapped to breadboard
+    if (!button.userData.snappedPins || button.userData.snappedPins.length < 2) {
+        console.log('⚠️ Button must be snapped to breadboard before it can be pressed');
+        return;
+    }
+
+    // Find the Button_Top mesh
+    let topMesh = null;
+    button.traverse((child) => {
+        if (child.isMesh && child.name === 'Button_Top') {
+            topMesh = child;
+        }
+    });
+
+    if (!topMesh) {
+        console.warn('⚠️ Button_Top mesh not found in button model');
+        return;
+    }
+
+    button.userData.isPressed = true;
+
+    // Store original position if not stored
+    if (!topMesh.userData._origPos) {
+        topMesh.userData._origPos = topMesh.position.clone();
+    }
+
+    // Move top down (press animation)
+    // Increased depth to 0.15 for deeper press (half the button)
+    topMesh.position.z = (topMesh.userData._origPos.z || 0) - 0.15;
+
+    console.log('🔘 Button PRESSED!');
+}
+
+function releaseButton(button) {
+    if (!button || !button.userData.isPressed) return;
+
+    // Find the Button_Top mesh
+    let topMesh = null;
+    button.traverse((child) => {
+        if (child.isMesh && child.name === 'Button_Top') {
+            topMesh = child;
+        }
+    });
+
+    if (!topMesh || !topMesh.userData._origPos) return;
+
+    // Restore original position (spring back up)
+    topMesh.position.copy(topMesh.userData._origPos);
+    button.userData.isPressed = false;
+
+    console.log('🔘 Button RELEASED!');
+}
+
+// Track which button is currently pressed
+let pressedButton = null;
+
+// ===== BUTTON PRESS MOUSE HANDLERS =====
+// Track double-click for button movement
+let buttonClickTimer = null;
+let buttonClickCount = 0;
+
+window.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return; // Only left click
+
+    updateMouse(e);
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(components, true);
+
+    for (const hit of intersects) {
+        const root = findComponentRoot(hit.object);
+        if (root && root.userData.type === 'BUTTON' && !wireMode) {
+            buttonClickCount++;
+
+            // Clear existing timer
+            if (buttonClickTimer) {
+                clearTimeout(buttonClickTimer);
+            }
+
+            // Single click - do button press animation
+            if (buttonClickCount === 1) {
+                buttonClickTimer = setTimeout(() => {
+                    // This is a single click - do press animation
+                    pressButton(root);
+                    pressedButton = root;
+                    buttonClickCount = 0;
+                }, 250); // 250ms delay to detect double-click
+            }
+            // Double click - allow dragging (do nothing, let normal drag handler work)
+            else if (buttonClickCount === 2) {
+                buttonClickCount = 0;
+                buttonClickTimer = null;
+                // Don't call pressButton - let the component drag normally
+                console.log('🔘 Double-click detected - button can be moved');
+            }
+            break;
+        }
+    }
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (e.button !== 0) return;
+
+    if (pressedButton) {
+        releaseButton(pressedButton);
+        pressedButton = null;
+    }
+});
 // RESIZE
 window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -3551,20 +3653,12 @@ function openManualSnapModal(component) {
     } else if (type === 'BUTTON') {
         modalInputs.innerHTML = `
             <div class="modal-input-group">
-                <label>Leg 1 Pin:</label>
-                <input type="text" id="input_leg1" placeholder="e.g., A1" />
+                <label>Pin 1 (Button_Pin_1):</label>
+                <input type="text" id="input_pin1" placeholder="e.g., A1, B5" />
             </div>
             <div class="modal-input-group">
-                <label>Leg 2 Pin:</label>
-                <input type="text" id="input_leg2" placeholder="e.g., A3" />
-            </div>
-            <div class="modal-input-group">
-                <label>Leg 3 Pin:</label>
-                <input type="text" id="input_leg3" placeholder="e.g., D1" />
-            </div>
-            <div class="modal-input-group">
-                <label>Leg 4 Pin:</label>
-                <input type="text" id="input_leg4" placeholder="e.g., D3" />
+                <label>Pin 2 (Button_Pin_2):</label>
+                <input type="text" id="input_pin2" placeholder="e.g., A3, B7" />
             </div>
         `;
     }
