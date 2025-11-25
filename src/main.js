@@ -716,6 +716,7 @@ window.addEventListener('pointermove', (e) => {
     raycaster.setFromCamera(mouse, camera);
 
     // Handle component dragging
+    // Handle component dragging
     if (draggingComponent) {
         // If dragging breadboard, ensure we are in move mode
         if (draggingComponent.userData.type === "BREADBOARD" && !breadboardMoveMode) {
@@ -733,6 +734,11 @@ window.addEventListener('pointermove', (e) => {
 
             // Update connected wires
             updateConnectedWires(draggingComponent);
+
+            // Live preview for LED snapping
+            if (draggingComponent.userData.type === "LED") {
+                highlightNearbyPinsForLED(draggingComponent);
+            }
         }
     }
 
@@ -1069,6 +1075,27 @@ window.addEventListener('pointerdown', (e) => {
             selectedComponent = rootComponent;
             draggingComponent = rootComponent;
             highlightComponent(selectedComponent, false);
+
+            // Clear old LED pin highlights when picking up LED
+            if (rootComponent.userData.type === "LED" && rootComponent.userData.snappedPins) {
+                const oldSnappedPins = rootComponent.userData.snappedPins;
+                // Find and clear highlights from old pins
+                pinObjects.forEach(pin => {
+                    if (pin.name === oldSnappedPins.long || pin.name === oldSnappedPins.short) {
+                        if (pin.children && pin.children[1]) {
+                            // Only hide if no wires connected
+                            const hasWire = wires.some(w =>
+                                w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+                            );
+                            if (!hasWire) {
+                                pin.children[1].material.visible = false;
+                            }
+                        }
+                    }
+                });
+                // Clear the snapped pins reference
+                delete rootComponent.userData.snappedPins;
+            }
 
             // Disable OrbitControls to prevent Arduino from moving
             controls.enabled = false;
@@ -1839,6 +1866,13 @@ window.addEventListener("pointerup", (e) => {
 function snapToNearestPin(component) {
     if (component.userData.type === "BREADBOARD") return;
 
+    // Special handling for LED - snap both legs
+    if (component.userData.type === "LED") {
+        snapLEDToNearestPins(component);
+        return;
+    }
+
+    // Original snapping logic for other components
     let compPos = new THREE.Vector3();
     component.getWorldPosition(compPos);
 
@@ -1869,17 +1903,201 @@ function snapToNearestPin(component) {
     console.log(component.userData.type, "snapped to", nearest.name);
 }
 
+// Highlight breadboard pins when LED legs are near them (live preview while dragging)
+function highlightNearbyPinsForLED(led) {
+    // Find the LED legs
+    let longLeg = null;
+    let shortLeg = null;
+
+    led.traverse((child) => {
+        if (child.name === 'anode') {
+            longLeg = child;
+        }
+        if (child.name === 'cathode') {
+            shortLeg = child;
+        }
+    });
+
+    if (!longLeg || !shortLeg) {
+        return;
+    }
+
+    // Get world positions of both legs
+    const longLegPos = new THREE.Vector3();
+    const shortLegPos = new THREE.Vector3();
+    longLeg.getWorldPosition(longLegPos);
+    shortLeg.getWorldPosition(shortLegPos);
+
+    // Only check breadboard pins
+    const breadboardPins = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root && root.userData.type === 'BREADBOARD';
+    });
+
+    // Reset all breadboard pin highlights first (unless they have wires or are snapped to other LEDs)
+    breadboardPins.forEach(pin => {
+        if (pin.children && pin.children[1]) {
+            // Only hide if no wires connected and not currently snapped to another LED
+            const hasWire = wires.some(w =>
+                w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+            );
+            const hasOtherLED = components.some(comp => {
+                if (comp.userData.type !== 'LED' || comp === led) return false;
+                const snapped = comp.userData.snappedPins;
+                return snapped && (snapped.long === pin.name || snapped.short === pin.name);
+            });
+
+            if (!hasWire && !hasOtherLED) {
+                pin.children[1].material.visible = false;
+            }
+        }
+    });
+
+    // Find and highlight nearest pins for each leg
+    let nearestLongPin = null;
+    let nearestShortPin = null;
+    let minLongDist = Infinity;
+    let minShortDist = Infinity;
+
+    breadboardPins.forEach(pin => {
+        const pinPos = new THREE.Vector3();
+        pin.getWorldPosition(pinPos);
+
+        const longDist = longLegPos.distanceTo(pinPos);
+        const shortDist = shortLegPos.distanceTo(pinPos);
+
+        if (longDist < minLongDist && longDist < 0.5) {
+            minLongDist = longDist;
+            nearestLongPin = pin;
+        }
+
+        if (shortDist < minShortDist && shortDist < 0.5) {
+            minShortDist = shortDist;
+            nearestShortPin = pin;
+        }
+    });
+
+    // Highlight the nearest pins with black circles (live preview)
+    if (nearestLongPin && nearestLongPin.children && nearestLongPin.children[1]) {
+        nearestLongPin.children[1].material.color.set(0x000000);
+        nearestLongPin.children[1].material.visible = true;
+    }
+
+    if (nearestShortPin && nearestShortPin !== nearestLongPin &&
+        nearestShortPin.children && nearestShortPin.children[1]) {
+        nearestShortPin.children[1].material.color.set(0x000000);
+        nearestShortPin.children[1].material.visible = true;
+    }
+}
+
+// LED-specific snapping - snaps both legs to breadboard pins
+function snapLEDToNearestPins(led) {
+    // Find the LED legs in the model - use the helper objects we created
+    let longLeg = null;
+    let shortLeg = null;
+
+    led.traverse((child) => {
+        if (child.name === 'anode') {
+            longLeg = child;
+        }
+        if (child.name === 'cathode') {
+            shortLeg = child;
+        }
+    });
+
+    if (!longLeg || !shortLeg) {
+        console.warn("LED legs (anode/cathode helpers) not found");
+        return;
+    }
+
+    // Get world positions of both legs
+    const longLegPos = new THREE.Vector3();
+    const shortLegPos = new THREE.Vector3();
+    longLeg.getWorldPosition(longLegPos);
+    shortLeg.getWorldPosition(shortLegPos);
+
+    // Find nearest breadboard pins for each leg
+    let nearestLongPin = null;
+    let nearestShortPin = null;
+    let minLongDist = Infinity;
+    let minShortDist = Infinity;
+
+    // Only snap to breadboard pins (not Arduino pins)
+    const breadboardPins = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root && root.userData.type === 'BREADBOARD';
+    });
+
+    breadboardPins.forEach(pin => {
+        const pinPos = new THREE.Vector3();
+        pin.getWorldPosition(pinPos);
+
+        const longDist = longLegPos.distanceTo(pinPos);
+        const shortDist = shortLegPos.distanceTo(pinPos);
+
+        if (longDist < minLongDist && longDist < 0.5) {
+            minLongDist = longDist;
+            nearestLongPin = pin;
+        }
+
+        if (shortDist < minShortDist && shortDist < 0.5) {
+            minShortDist = shortDist;
+            nearestShortPin = pin;
+        }
+    });
+
+    // Only snap if both legs found nearby pins and they're different pins
+    if (nearestLongPin && nearestShortPin && nearestLongPin !== nearestShortPin) {
+        // Get pin world positions
+        const pin1Pos = new THREE.Vector3();
+        const pin2Pos = new THREE.Vector3();
+        nearestLongPin.getWorldPosition(pin1Pos);
+        nearestShortPin.getWorldPosition(pin2Pos);
+
+        // Calculate midpoint between the two pins
+        const midpoint = new THREE.Vector3();
+        midpoint.addVectors(pin1Pos, pin2Pos).multiplyScalar(0.5);
+
+        // Snap to midpoint
+        led.position.copy(midpoint);
+
+        // Calculate rotation to align LED with pin direction
+        const direction = new THREE.Vector3();
+        direction.subVectors(pin2Pos, pin1Pos).normalize();
+
+        // Calculate angle in XZ plane
+        const angle = Math.atan2(direction.x, direction.z);
+        led.rotation.y = angle;
+
+        // Store snapped pins
+        led.userData.snappedPins = {
+            long: nearestLongPin.name,
+            short: nearestShortPin.name
+        };
+
+        // Keep black circles visible on snapped pins (persistent highlight)
+        if (nearestLongPin.children && nearestLongPin.children[1]) {
+            nearestLongPin.children[1].material.color.set(0x000000);
+            nearestLongPin.children[1].material.visible = true;
+        }
+        if (nearestShortPin.children && nearestShortPin.children[1]) {
+            nearestShortPin.children[1].material.color.set(0x000000);
+            nearestShortPin.children[1].material.visible = true;
+        }
+
+        console.log(`LED snapped: Long leg → ${nearestLongPin.name}, Short leg → ${nearestShortPin.name}`);
+    } else {
+        console.log("LED not close enough to breadboard pins for snapping");
+    }
+}
 // Helper to find the root component from a raycast hit object
 function findComponentRoot(obj) {
-    console.log('Finding root for:', obj.name || obj.type, 'userData:', obj.userData);
     while (obj) {
         if (obj.userData && obj.userData.type) {
-            console.log('Found root:', obj.userData.type);
             return obj;
         }
         obj = obj.parent;
     }
-    console.log('No root found');
     return null;
 }
 //Update Mouse
@@ -2390,10 +2608,31 @@ function loadStateFromLocalStorage() {
                     loadingOverlay.classList.add("hidden");
                     moveBoardBtn.style.display = "block";
 
+                    console.log('Breadboard loaded, restoring wires...');
                     // Restore wires after breadboard is loaded
-                    restoreWires(state);
+                    setTimeout(() => {
+                        if (state.wires && state.wires.length > 0) {
+                            state.wires.forEach(wireData => {
+                                const fromPin = pinObjects.find(p => p.name === wireData.fromPin);
+                                const toPin = pinObjects.find(p => p.name === wireData.toPin);
+
+                                if (fromPin && toPin) {
+                                    drawWire(fromPin, toPin, wireData.color);
+                                    console.log(`Wire restored: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                } else {
+                                    console.warn(`Could not restore wire: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                }
+                            });
+
+                            if (state.wireConnections) {
+                                wireConnections = state.wireConnections;
+                            }
+                            console.log('✅ Wires restored');
+                        }
+                    }, 800);
                 });
-            } else if (compData.type === 'LED') {
+            }
+            else if (compData.type === 'LED') {
                 comp = createLEDPlaceholder();
                 comp.position.set(compData.position.x, compData.position.y, compData.position.z);
                 comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
@@ -2401,6 +2640,24 @@ function loadStateFromLocalStorage() {
 
                 scene.add(comp);
                 components.push(comp);
+
+                // Restore LED pin highlights if it was snapped
+                if (compData.userData.snappedPins) {
+                    setTimeout(() => {
+                        const longPin = pinObjects.find(p => p.name === compData.userData.snappedPins.long);
+                        const shortPin = pinObjects.find(p => p.name === compData.userData.snappedPins.short);
+
+                        if (longPin && longPin.children && longPin.children[1]) {
+                            longPin.children[1].material.color.set(0x000000);
+                            longPin.children[1].material.visible = true;
+                        }
+                        if (shortPin && shortPin.children && shortPin.children[1]) {
+                            shortPin.children[1].material.color.set(0x000000);
+                            shortPin.children[1].material.visible = true;
+                        }
+                        console.log(`LED snapping restored: ${compData.userData.snappedPins.long} & ${compData.userData.snappedPins.short}`);
+                    }, 1000);
+                }
             } else if (compData.type === 'RESISTOR') {
                 comp = createResistorPlaceholder();
                 comp.position.set(compData.position.x, compData.position.y, compData.position.z);
@@ -2443,35 +2700,19 @@ function clearScene() {
     wires = [];
     wireConnections = [];
 
-    // Clear pin objects
-    pinObjects = [];
+    // Clear ONLY breadboard pins, keep Arduino pins
+    pinObjects = pinObjects.filter(pin => {
+        // Keep pins that belong to Arduino (start with "Pin_")
+        return pin.name && pin.name.startsWith("Pin_");
+    });
 
     // Reset breadboard
     breadboard = null;
     moveBoardBtn.style.display = "none";
 
-    console.log('Scene cleared');
+    console.log('Scene cleared, Arduino pins preserved');
 }
 
-// Auto-save on changes
-function setupAutoSave() {
-    // Save every 2 seconds if there are changes
-    setInterval(() => {
-        if (components.length > 0 || wires.length > 0) {
-            saveStateToLocalStorage();
-        }
-    }, 2000);
-}
-
-// Load state on page load
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        loadStateFromLocalStorage();
-    }, 1000); // Wait for everything to initialize
-});
-
-// Setup auto-save
-setupAutoSave();
 
 // Export for manual save/load buttons (optional)
 window.saveState = saveStateToLocalStorage;
@@ -2600,7 +2841,8 @@ initMenuBar(
                         }
                     }, 800);
                 });
-            } else if (compData.type === 'LED') {
+            }
+            else if (compData.type === 'LED') {
                 comp = createLEDPlaceholder();
                 comp.position.set(compData.position.x, compData.position.y, compData.position.z);
                 comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
@@ -2608,6 +2850,25 @@ initMenuBar(
 
                 scene.add(comp);
                 components.push(comp);
+
+                // Restore LED pin highlights if it was snapped
+                if (compData.userData.snappedPins) {
+                    setTimeout(() => {
+                        const longPin = pinObjects.find(p => p.name === compData.userData.snappedPins.long);
+                        const shortPin = pinObjects.find(p => p.name === compData.userData.snappedPins.short);
+
+                        if (longPin && longPin.children && longPin.children[1]) {
+                            longPin.children[1].material.color.set(0x000000);
+                            longPin.children[1].material.visible = true;
+                        }
+                        if (shortPin && shortPin.children && shortPin.children[1]) {
+                            shortPin.children[1].material.color.set(0x000000);
+                            shortPin.children[1].material.visible = true;
+                        }
+                        console.log(`LED snapping restored: ${compData.userData.snappedPins.long} & ${compData.userData.snappedPins.short}`);
+                    }, 1000);
+                }
+
                 console.log('LED restored at', comp.position);
             } else if (compData.type === 'RESISTOR') {
                 comp = createResistorPlaceholder();
