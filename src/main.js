@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { initArduinoIDE, toggleIDE, getEditorInstance } from './arduinoIDE.js';
 import { initShuffle } from './Shuffle.js';
+import { colorDropdown } from './colorDropdown.js';
 import { initMenuBar, setProjectName } from './menuBar.js';
 
 import {
@@ -561,6 +562,21 @@ addWireBtn.addEventListener("click", () => {
     addWireBtn.textContent = wireMode ? "Wire Mode: ON" : "Add Wire";
     firstPin = null;
     console.log(wireMode)
+    // Show/hide color dropdown based on wire mode
+    if (wireMode) {
+        colorDropdown.show();
+    } else {
+        colorDropdown.hide();
+    }
+
+    console.log(wireMode);
+});
+
+// Listen for color changes from the dropdown
+colorDropdown.onColorChange((color) => {
+    console.log('Selected wire color:', color);
+    // Update your wire color variable (assuming you have one)
+    // Example: currentWireColor = parseInt(color.value);
 });
 
 // Create environment map for Material Preview (Blender-style)

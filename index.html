@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/arduinoIDE.css">
+  <link rel="stylesheet" href="/src/colorDropdown.css">
   <style>
     body {
       margin: 0;
@@ -1074,8 +1075,8 @@
         <div id="components-menu" aria-hidden="true">
           <div class="wire-control" id="wireControl">
             <button id="addWireBtn" class="spawn">Add Wire</button>
-            <!-- make the select visually match the other animated items -->
-            <select id="wireColorPicker" class="spawn" aria-label="Wire Color">
+            <!-- Hidden select for backward compatibility with main.js -->
+            <select id="wireColorPicker" style="display: none;">
               <option value="0xff0000">Red</option>
               <option value="0x00ff00">Green</option>
               <option value="0x0000ff">Blue</option>
@@ -1085,6 +1086,8 @@
               <option value="0xffffff">White</option>
               <option value="0x000000">Black</option>
             </select>
+            <!-- Custom animated color picker dropdown -->
+
           </div>
           <button class="spawn" data-type="LED">Add LED</button>
           <button class="spawn" data-type="RESISTOR">Add Resistor</button>
