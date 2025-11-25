@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { initArduinoIDE, toggleIDE } from './arduinoIDE.js';
+import { initArduinoIDE, toggleIDE, getEditorInstance } from './arduinoIDE.js';
 import { initShuffle } from './Shuffle.js';
+import { initMenuBar, setProjectName } from './menuBar.js';
+
 import {
     createBreadboardIcon,
     startIconDrag,
@@ -1477,7 +1479,7 @@ function updateTempWire(mousePos) {
 }
 
 // DRAW CURVED WIRE (thicker using TubeGeometry)
-function drawWire(pin1, pin2) {
+function drawWire(pin1, pin2, customColor = null) {
     const p1 = new THREE.Vector3();
     const p2 = new THREE.Vector3();
     pin1.getWorldPosition(p1);
@@ -1490,7 +1492,9 @@ function drawWire(pin1, pin2) {
 
     // Use TubeGeometry for thicker, 3D wires
     const geometry = new THREE.TubeGeometry(curve, WIRE_TUBULAR_SEGMENTS, WIRE_RADIUS, WIRE_RADIAL_SEGMENTS, false);
-    const color = parseInt(wireColorPicker.value);
+
+    // Use custom color if provided, otherwise use color picker value
+    const color = customColor !== null ? customColor : parseInt(wireColorPicker.value);
 
     const material = new THREE.MeshPhysicalMaterial({
         color: color,
@@ -2274,3 +2278,366 @@ window.addEventListener('pointerdown', (e) => {
 window.addEventListener('wheel', hideWireContextMenu);
 window.addEventListener('resize', hideWireContextMenu);
 window.addEventListener('scroll', hideWireContextMenu);
+
+
+// ===== LOCAL STORAGE - SAVE/LOAD STATE =====
+
+function saveStateToLocalStorage() {
+    try {
+        const state = {
+            components: components.map(comp => ({
+                type: comp.userData.type,
+                position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
+                rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
+                scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
+                userData: comp.userData
+            })),
+            wires: wires.map(wire => ({
+                id: wire.userData.id,
+                fromPin: wire.userData.fromPin,
+                toPin: wire.userData.toPin,
+                color: wire.userData.color
+            })),
+            wireConnections: wireConnections,
+            arduinoCode: getEditorInstance() ? getEditorInstance().getValue() : ''
+        };
+
+        localStorage.setItem('gamewise_board_state', JSON.stringify(state));
+        console.log('✅ State saved to localStorage');
+    } catch (error) {
+        console.error('❌ Error saving state:', error);
+    }
+}
+
+function loadStateFromLocalStorage() {
+    try {
+        const savedState = localStorage.getItem('gamewise_board_state');
+        if (!savedState) {
+            console.log('No saved state found');
+            return false;
+        }
+
+        const state = JSON.parse(savedState);
+
+        // Clear current scene
+        clearScene();
+
+        // Restore components
+        state.components.forEach(compData => {
+            let comp = null;
+
+            if (compData.type === 'BREADBOARD') {
+                // Spawn breadboard
+                loadingOverlay.classList.remove("hidden");
+                const breadboardLoader = new GLTFLoader();
+                breadboardLoader.load('/Breadboard.glb', (gltf) => {
+                    const bb = gltf.scene;
+                    breadboard = bb;
+
+                    bb.position.set(compData.position.x, compData.position.y, compData.position.z);
+                    bb.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                    bb.scale.set(compData.scale.x, compData.scale.y, compData.scale.z);
+                    bb.userData = compData.userData;
+
+                    scene.add(bb);
+                    components.push(bb);
+
+                    // Detect breadboard pins
+                    bb.traverse((obj) => {
+                        if (obj.type === "Object3D" && (obj.name.startsWith("BB_") || obj.name.includes("GND") || obj.name.includes("VCC"))) {
+                            obj.userData.isPin = true;
+
+                            const helper = new THREE.Mesh(
+                                new THREE.SphereGeometry(0.03),
+                                new THREE.MeshBasicMaterial({ visible: false })
+                            );
+                            obj.add(helper);
+
+                            const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+                            const ringMat = new THREE.MeshBasicMaterial({
+                                color: 0x000000,
+                                visible: false,
+                                transparent: true
+                            });
+                            const ring = new THREE.Mesh(ringGeo, ringMat);
+                            ring.rotation.x = Math.PI / 2;
+                            obj.add(ring);
+
+                            pinObjects.push(obj);
+                        }
+                    });
+
+                    // Apply materials
+                    bb.traverse((child) => {
+                        if (child instanceof THREE.Mesh && child.material) {
+                            const materials = Array.isArray(child.material) ? child.material : [child.material];
+                            child.material = materials.map((mat) => {
+                                if (mat.isMeshStandardMaterial) {
+                                    mat.roughness = 1;
+                                    mat.metalness = 1;
+                                    mat.envMapIntensity = 1;
+                                    mat.needsUpdate = true;
+                                }
+                                return mat;
+                            });
+                            if (child.material.length === 1) {
+                                child.material = child.material[0];
+                            }
+                        }
+                    });
+
+                    createBreadboardIcon(bb);
+                    loadingOverlay.classList.add("hidden");
+                    moveBoardBtn.style.display = "block";
+
+                    // Restore wires after breadboard is loaded
+                    restoreWires(state);
+                });
+            } else if (compData.type === 'LED') {
+                comp = createLEDPlaceholder();
+                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                comp.userData = compData.userData;
+
+                scene.add(comp);
+                components.push(comp);
+            } else if (compData.type === 'RESISTOR') {
+                comp = createResistorPlaceholder();
+                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                comp.userData = compData.userData;
+
+                scene.add(comp);
+                components.push(comp);
+            }
+        });
+
+        // Restore Arduino code
+        const editor = getEditorInstance();
+        if (state.arduinoCode && editor) {
+            editor.setValue(state.arduinoCode);
+        }
+
+        console.log('✅ State loaded from localStorage');
+        return true;
+    } catch (error) {
+        console.error('❌ Error loading state:', error);
+        return false;
+    }
+}
+
+
+function clearScene() {
+    // Remove all components
+    components.forEach(comp => {
+        scene.remove(comp);
+    });
+    components = [];
+
+    // Remove all wires
+    wires.forEach(wire => {
+        if (wire.userData.fromHelper) scene.remove(wire.userData.fromHelper);
+        if (wire.userData.toHelper) scene.remove(wire.userData.toHelper);
+        scene.remove(wire);
+    });
+    wires = [];
+    wireConnections = [];
+
+    // Clear pin objects
+    pinObjects = [];
+
+    // Reset breadboard
+    breadboard = null;
+    moveBoardBtn.style.display = "none";
+
+    console.log('Scene cleared');
+}
+
+// Auto-save on changes
+function setupAutoSave() {
+    // Save every 2 seconds if there are changes
+    setInterval(() => {
+        if (components.length > 0 || wires.length > 0) {
+            saveStateToLocalStorage();
+        }
+    }, 2000);
+}
+
+// Load state on page load
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        loadStateFromLocalStorage();
+    }, 1000); // Wait for everything to initialize
+});
+
+// Setup auto-save
+setupAutoSave();
+
+// Export for manual save/load buttons (optional)
+window.saveState = saveStateToLocalStorage;
+window.loadState = loadStateFromLocalStorage;
+window.clearState = () => {
+    localStorage.removeItem('gamewise_board_state');
+    clearScene();
+    console.log('✅ State cleared');
+};
+
+// Initialize menu bar with callbacks
+initMenuBar(
+    // Save callback - returns current state
+    () => {
+        const state = {
+            components: components.map(comp => ({
+                type: comp.userData.type,
+                position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
+                rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
+                scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
+                userData: comp.userData
+            })),
+            wires: wires.map(wire => ({
+                id: wire.userData.id,
+                fromPin: wire.userData.fromPin,
+                toPin: wire.userData.toPin,
+                color: wire.userData.color
+            })),
+            wireConnections: wireConnections,
+            arduinoCode: getEditorInstance() ? getEditorInstance().getValue() : ''
+        };
+        return state;
+    },
+    // Load callback - loads state from file
+    // Load callback - loads state from file
+    (state) => {
+        console.log('Loading state:', state);
+        clearScene();
+
+        let breadboardLoaded = false;
+
+        // Restore components
+        state.components.forEach(compData => {
+            let comp = null;
+
+            if (compData.type === 'BREADBOARD') {
+                breadboardLoaded = true;
+                const breadboardLoader = new GLTFLoader();
+                breadboardLoader.load('/Breadboard.glb', (gltf) => {
+                    const bb = gltf.scene;
+                    breadboard = bb;
+
+                    bb.position.set(compData.position.x, compData.position.y, compData.position.z);
+                    bb.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                    bb.scale.set(compData.scale.x, compData.scale.y, compData.scale.z);
+                    bb.userData = compData.userData;
+
+                    scene.add(bb);
+                    components.push(bb);
+
+                    bb.traverse((obj) => {
+                        if (obj.type === "Object3D" && (obj.name.startsWith("BB_") || obj.name.includes("GND") || obj.name.includes("VCC"))) {
+                            obj.userData.isPin = true;
+
+                            const helper = new THREE.Mesh(
+                                new THREE.SphereGeometry(0.03),
+                                new THREE.MeshBasicMaterial({ visible: false })
+                            );
+                            obj.add(helper);
+
+                            const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+                            const ringMat = new THREE.MeshBasicMaterial({
+                                color: 0x000000,
+                                visible: false,
+                                transparent: true
+                            });
+                            const ring = new THREE.Mesh(ringGeo, ringMat);
+                            ring.rotation.x = Math.PI / 2;
+                            obj.add(ring);
+
+                            pinObjects.push(obj);
+                        }
+                    });
+
+                    bb.traverse((child) => {
+                        if (child instanceof THREE.Mesh && child.material) {
+                            const materials = Array.isArray(child.material) ? child.material : [child.material];
+                            child.material = materials.map((mat) => {
+                                if (mat.isMeshStandardMaterial) {
+                                    mat.roughness = 1;
+                                    mat.metalness = 1;
+                                    mat.envMapIntensity = 1;
+                                    mat.needsUpdate = true;
+                                }
+                                return mat;
+                            });
+                            if (child.material.length === 1) {
+                                child.material = child.material[0];
+                            }
+                        }
+                    });
+
+                    createBreadboardIcon(bb);
+                    moveBoardBtn.style.display = "block";
+
+                    console.log('Breadboard loaded, restoring wires...');
+                    // Restore wires after breadboard is loaded
+                    setTimeout(() => {
+                        if (state.wires && state.wires.length > 0) {
+                            state.wires.forEach(wireData => {
+                                const fromPin = pinObjects.find(p => p.name === wireData.fromPin);
+                                const toPin = pinObjects.find(p => p.name === wireData.toPin);
+
+                                if (fromPin && toPin) {
+                                    drawWire(fromPin, toPin, wireData.color);
+                                    console.log(`Wire restored: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                } else {
+                                    console.warn(`Could not restore wire: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                }
+                            });
+
+                            if (state.wireConnections) {
+                                wireConnections = state.wireConnections;
+                            }
+                            console.log('✅ Wires restored');
+                        }
+                    }, 800);
+                });
+            } else if (compData.type === 'LED') {
+                comp = createLEDPlaceholder();
+                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                comp.userData = compData.userData;
+
+                scene.add(comp);
+                components.push(comp);
+                console.log('LED restored at', comp.position);
+            } else if (compData.type === 'RESISTOR') {
+                comp = createResistorPlaceholder();
+                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                comp.userData = compData.userData;
+
+                scene.add(comp);
+                components.push(comp);
+                console.log('Resistor restored at', comp.position);
+            }
+        });
+
+        // Restore Arduino code - wait for editor to be ready
+        if (state.arduinoCode) {
+            const trySetCode = () => {
+                const editor = getEditorInstance();
+                if (editor) {
+                    editor.setValue(state.arduinoCode);
+                    console.log('✅ Arduino code restored');
+                } else {
+                    // Editor not ready yet, try again
+                    setTimeout(trySetCode, 500);
+                }
+            };
+            setTimeout(trySetCode, 1000);
+        }
+    },
+    // Clear callback
+    () => {
+        clearScene();
+    }
+);

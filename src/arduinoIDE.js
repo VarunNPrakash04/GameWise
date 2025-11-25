@@ -406,3 +406,10 @@ function setupPanelResize() {
     });
 }
 
+
+/**
+ * Get the editor instance for saving/loading
+ */
+export function getEditorInstance() {
+    return editorInstance;
+}
