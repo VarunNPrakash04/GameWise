@@ -329,7 +329,7 @@ function createButtonPlaceholder() {
     const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
     const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
     hitbox.name = 'ButtonHitbox';
-    btnGroup.add(hitbox);
+    group.add(hitbox);
     return group;
 
 }
