@@ -229,6 +229,104 @@ function createResistorPlaceholder() {
     return resistor;
 }
 
+// CREATE BUTTON FROM GLB MODEL
+function createButtonPlaceholder() {
+    const group = new THREE.Group();
+    group.userData.type = "BUTTON";
+    group.position.set(0, 0.3, 0);
+
+    // Load the actual Button.glb model
+    const buttonLoader = new GLTFLoader();
+    buttonLoader.load('/Button.glb', (gltf) => {
+        const buttonModel = gltf.scene;
+
+        // Scale down the button to appropriate size
+        buttonModel.scale.set(0.2, 0.2, 0.2);
+
+        // Apply materials for Material Preview mode
+        buttonModel.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material) {
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                child.material = materials.map((mat) => {
+                    // Convert to MeshStandardMaterial for consistent behavior
+                    if (!mat.isMeshStandardMaterial) {
+                        const newMat = new THREE.MeshStandardMaterial({
+                            color: mat.color || 0xffffff,
+                            map: mat.map || null,
+                            roughness: 0.4,
+                            metalness: 0.5,
+                            envMapIntensity: 1
+                        });
+                        return newMat;
+                    } else {
+                        mat.roughness = 0.4;
+                        mat.metalness = 0.5;
+                        mat.envMapIntensity = 1;
+                        mat.needsUpdate = true;
+                        return mat;
+                    }
+                });
+                if (child.material.length === 1) {
+                    child.material = child.material[0];
+                }
+            }
+        });
+
+        // Find button legs/pins in the model and mark them
+        buttonModel.traverse((obj) => {
+            // Adjust this condition based on how the pins are named in your Button.glb file
+            // Common naming patterns: "leg", "pin", "terminal", etc.
+            if (obj.name && (obj.name.toLowerCase().includes('leg') ||
+                obj.name.toLowerCase().includes('pin') ||
+                obj.name.toLowerCase().includes('terminal'))) {
+                obj.userData.isPin = true;
+
+                // Add invisible helper for raycasting
+                const helper = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.04),
+                    new THREE.MeshBasicMaterial({ visible: false })
+                );
+                obj.add(helper);
+
+                // Add outline ring (hidden by default)
+                const ringGeo = new THREE.TorusGeometry(0.05, 0.01, 8, 16);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: 0x000000,
+                    visible: false,
+                    transparent: true
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2;
+                obj.add(ring);
+
+                // Store pin reference
+                if (!group.userData.pins) {
+                    group.userData.pins = {};
+                }
+                group.userData.pins[obj.name] = obj;
+            }
+        });
+
+        // Mark the button model itself with the type so raycasting works on child meshes
+        buttonModel.userData.type = "BUTTON";
+        buttonModel.userData.isComponent = true;
+
+        // Also mark all child meshes so they can be raycast properly
+        buttonModel.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                child.userData.parentComponent = group;
+            }
+        });
+
+        group.add(buttonModel);
+        console.log("Button model loaded with pins:", Object.keys(group.userData.pins || {}));
+    }, undefined, (error) => {
+        console.error('Error loading Button.glb:', error);
+    });
+
+    return group;
+}
+
 // SCENE SETUP
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a1a);
@@ -739,6 +837,11 @@ window.addEventListener('pointermove', (e) => {
             if (draggingComponent.userData.type === "LED") {
                 highlightNearbyPinsForLED(draggingComponent);
             }
+
+            // Live preview for BUTTON snapping
+            if (draggingComponent.userData.type === "BUTTON") {
+                highlightNearbyPinsForButton(draggingComponent);
+            }
         }
     }
 
@@ -1033,8 +1136,18 @@ window.addEventListener('pointerdown', (e) => {
         let rootComponent = null;
 
         for (const hit of intersects) {
+            // Skip if this is a pin object (we want to drag the component, not connect wires)
+            const isPin = hit.object.userData.isPin ||
+                (hit.object.parent && hit.object.parent.userData.isPin);
+
             const root = findComponentRoot(hit.object);
-            if (root) {
+            if (root && !isPin) {
+                compHit = hit;
+                rootComponent = root;
+                break;
+            }
+            // If it's a pin but belongs to LED/BUTTON, still allow component dragging
+            if (root && isPin && (root.userData.type === 'LED' || root.userData.type === 'BUTTON') && !wireMode) {
                 compHit = hit;
                 rootComponent = root;
                 break;
@@ -1100,13 +1213,24 @@ window.addEventListener('pointerdown', (e) => {
             // Disable OrbitControls to prevent Arduino from moving
             controls.enabled = false;
 
-            // Setup dragging plane
+            // Setup dragging plane at component's position
+            const componentWorldPos = new THREE.Vector3();
+            draggingComponent.getWorldPosition(componentWorldPos);
+
             plane.setFromNormalAndCoplanarPoint(
                 camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
-                draggingComponent.position
+                componentWorldPos
             );
-            planeIntersect.copy(compHit.point);
-            offset.copy(draggingComponent.position).sub(planeIntersect);
+
+            // Use the hit point to calculate offset properly
+            if (compHit && compHit.point) {
+                planeIntersect.copy(compHit.point);
+                offset.copy(componentWorldPos).sub(planeIntersect);
+            } else {
+                // Fallback if no hit point
+                planeIntersect.copy(componentWorldPos);
+                offset.set(0, 0, 0);
+            }
             return;
         }
     }
@@ -1872,6 +1996,12 @@ function snapToNearestPin(component) {
         return;
     }
 
+    // Special handling for BUTTON - snap all 4 legs
+    if (component.userData.type === "BUTTON") {
+        snapButtonToNearestPins(component);
+        return;
+    }
+
     // Original snapping logic for other components
     let compPos = new THREE.Vector3();
     component.getWorldPosition(compPos);
@@ -1990,6 +2120,71 @@ function highlightNearbyPinsForLED(led) {
     }
 }
 
+// Highlight breadboard pins when button legs are near them (live preview while dragging)
+function highlightNearbyPinsForButton(button) {
+    const legs = [];
+
+    button.traverse((child) => {
+        if (child.userData.isPin || (child.name && (
+            child.name.toLowerCase().includes('leg') ||
+            child.name.toLowerCase().includes('pin') ||
+            child.name.toLowerCase().includes('terminal')
+        ))) {
+            legs.push(child);
+        }
+    });
+
+    if (legs.length === 0) return;
+
+    const breadboardPins = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root && root.userData.type === 'BREADBOARD';
+    });
+
+    // Reset all breadboard pin highlights
+    breadboardPins.forEach(pin => {
+        if (pin.children && pin.children[1]) {
+            const hasWire = wires.some(w =>
+                w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+            );
+            const hasOtherComponent = components.some(comp => {
+                if (comp === button) return false;
+                const snapped = comp.userData.snappedPins;
+                return snapped && snapped.includes(pin.name);
+            });
+
+            if (!hasWire && !hasOtherComponent) {
+                pin.children[1].material.visible = false;
+            }
+        }
+    });
+
+    // Highlight nearest pins for each leg
+    legs.forEach(leg => {
+        const legPos = new THREE.Vector3();
+        leg.getWorldPosition(legPos);
+
+        let nearestPin = null;
+        let minDist = Infinity;
+
+        breadboardPins.forEach(pin => {
+            const pinPos = new THREE.Vector3();
+            pin.getWorldPosition(pinPos);
+            const dist = legPos.distanceTo(pinPos);
+
+            if (dist < minDist && dist < 0.5) {
+                minDist = dist;
+                nearestPin = pin;
+            }
+        });
+
+        if (nearestPin && nearestPin.children && nearestPin.children[1]) {
+            nearestPin.children[1].material.color.set(0x000000);
+            nearestPin.children[1].material.visible = true;
+        }
+    });
+}
+
 // LED-specific snapping - snaps both legs to breadboard pins
 function snapLEDToNearestPins(led) {
     // Find the LED legs in the model - use the helper objects we created
@@ -2090,11 +2285,103 @@ function snapLEDToNearestPins(led) {
         console.log("LED not close enough to breadboard pins for snapping");
     }
 }
+
+// BUTTON-specific snapping - snaps all 4 legs to breadboard pins
+function snapButtonToNearestPins(button) {
+    // Find the button legs in the model
+    const legs = [];
+
+    button.traverse((child) => {
+        if (child.userData.isPin || (child.name && (
+            child.name.toLowerCase().includes('leg') ||
+            child.name.toLowerCase().includes('pin') ||
+            child.name.toLowerCase().includes('terminal')
+        ))) {
+            legs.push(child);
+        }
+    });
+
+    if (legs.length === 0) {
+        console.warn("Button legs not found");
+        return;
+    }
+
+    // Get world positions of all legs
+    const legPositions = legs.map(leg => {
+        const pos = new THREE.Vector3();
+        leg.getWorldPosition(pos);
+        return { leg, pos };
+    });
+
+    // Only snap to breadboard pins
+    const breadboardPins = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root && root.userData.type === 'BREADBOARD';
+    });
+
+    // Find nearest pins for each leg
+    const snappedPins = [];
+    legPositions.forEach(({ leg, pos }) => {
+        let nearestPin = null;
+        let minDist = Infinity;
+
+        breadboardPins.forEach(pin => {
+            const pinPos = new THREE.Vector3();
+            pin.getWorldPosition(pinPos);
+            const dist = pos.distanceTo(pinPos);
+
+            if (dist < minDist && dist < 0.5) {
+                minDist = dist;
+                nearestPin = pin;
+            }
+        });
+
+        if (nearestPin) {
+            snappedPins.push({ leg, pin: nearestPin });
+        }
+    });
+
+    // Only snap if at least 2 legs found nearby pins
+    if (snappedPins.length >= 2) {
+        // Calculate average position of snapped pins
+        const avgPos = new THREE.Vector3();
+        snappedPins.forEach(({ pin }) => {
+            const pinPos = new THREE.Vector3();
+            pin.getWorldPosition(pinPos);
+            avgPos.add(pinPos);
+        });
+        avgPos.divideScalar(snappedPins.length);
+
+        // Snap button to average position
+        button.position.copy(avgPos);
+
+        // Store snapped pins
+        button.userData.snappedPins = snappedPins.map(({ pin }) => pin.name);
+
+        // Highlight snapped pins with black circles
+        snappedPins.forEach(({ pin }) => {
+            if (pin.children && pin.children[1]) {
+                pin.children[1].material.color.set(0x000000);
+                pin.children[1].material.visible = true;
+            }
+        });
+
+        console.log(`Button snapped to ${snappedPins.length} pins:`, button.userData.snappedPins);
+    } else {
+        console.log("Button not close enough to breadboard pins for snapping");
+    }
+}
+
 // Helper to find the root component from a raycast hit object
 function findComponentRoot(obj) {
     while (obj) {
+        // Check if this object has a type (it's a root component)
         if (obj.userData && obj.userData.type) {
             return obj;
+        }
+        // Check if this object has a reference to its parent component
+        if (obj.userData && obj.userData.parentComponent) {
+            return obj.userData.parentComponent;
         }
         obj = obj.parent;
     }
@@ -2161,6 +2448,7 @@ function spawnComponent(type) {
 
     if (type === "LED") obj = createLEDPlaceholder();
     if (type === "RESISTOR") obj = createResistorPlaceholder();
+    if (type === "BUTTON") obj = createButtonPlaceholder();
     if (type === "BREADBOARD") {
         spawnBreadboard();
         return;
@@ -2175,7 +2463,6 @@ function spawnComponent(type) {
         highlightComponent(obj, true);
     }
 }
-
 
 // RESIZE
 window.addEventListener('resize', () => {
