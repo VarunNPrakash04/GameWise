@@ -1184,6 +1184,13 @@ window.addEventListener('pointerdown', (e) => {
             console.log('📦 Component found:', rootComponent.userData.type);
             const obj = rootComponent;
 
+            // Check if component is locked
+            if (obj.userData.isLocked) {
+                console.log('🔒 Component is locked - cannot move');
+                updateComponentStatus(obj);
+                return;
+            }
+
             // Special handling for breadboard
             if (obj.userData.type === "BREADBOARD") {
                 if (!breadboardMoveMode) {
@@ -2532,6 +2539,7 @@ function highlightComponent(component, highlight) {
 function deselectComponent() {
     if (selectedComponent) {
         highlightComponent(selectedComponent, false);
+        hideComponentStatus();
         selectedComponent = null;
     }
 }
@@ -2555,6 +2563,7 @@ function spawnComponent(type) {
         deselectComponent();
         selectedComponent = obj;
         highlightComponent(obj, true);
+        updateComponentStatus(obj);
     }
 }
 
@@ -2615,6 +2624,89 @@ function releaseButton(button) {
     console.log('🔘 Button RELEASED!');
 }
 
+// Display component status (lock state and pins)
+function updateComponentStatus(component) {
+    if (!component) return;
+
+    // Create or get status display element
+    let statusDiv = document.getElementById('componentStatus');
+    if (!statusDiv) {
+        statusDiv = document.createElement('div');
+        statusDiv.id = 'componentStatus';
+        statusDiv.style.cssText = `
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            z-index: 1000;
+            min-width: 250px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border: 2px solid ${component.userData.isLocked ? '#4CAF50' : '#FF9800'};
+        `;
+        document.body.appendChild(statusDiv);
+    }
+
+    // Update border color based on lock state
+    statusDiv.style.border = `2px solid ${component.userData.isLocked ? '#4CAF50' : '#FF9800'}`;
+
+    // Build status HTML
+    const lockIcon = component.userData.isLocked ? '🔒' : '🔓';
+    const lockStatus = component.userData.isLocked ? 'LOCKED' : 'UNLOCKED';
+    const lockColor = component.userData.isLocked ? '#4CAF50' : '#FF9800';
+
+    let html = `
+        <div style="margin-bottom: 10px; font-weight: bold; font-size: 14px;">
+            ${component.userData.type} Status
+        </div>
+        <div style="margin-bottom: 8px;">
+            <span style="color: ${lockColor}; font-weight: bold;">${lockIcon} ${lockStatus}</span>
+        </div>
+    `;
+
+    // Show connected pins if available
+    if (component.userData.snappedPins) {
+        if (Array.isArray(component.userData.snappedPins)) {
+            // Button with multiple pins
+            html += `
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;">
+                    <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">Connected Pins:</div>
+                    ${component.userData.snappedPins.map(pin => `<div style="color: #4CAF50;">📍 ${pin}</div>`).join('')}
+                </div>
+            `;
+        } else if (component.userData.snappedPins.long && component.userData.snappedPins.short) {
+            // LED with long/short pins
+            html += `
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;">
+                    <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">Connected Pins:</div>
+                    <div style="color: #4CAF50;">📍 Anode: ${component.userData.snappedPins.long}</div>
+                    <div style="color: #4CAF50;">📍 Cathode: ${component.userData.snappedPins.short}</div>
+                </div>
+            `;
+        }
+    }
+
+    html += `
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #444; font-size: 11px; color: #888;">
+            Press <span style="color: #4CAF50; font-weight: bold;">L</span> to lock • 
+            <span style="color: #FF9800; font-weight: bold;">U</span> to unlock
+        </div>
+    `;
+
+    statusDiv.innerHTML = html;
+}
+
+// Hide status display when component is deselected
+function hideComponentStatus() {
+    const statusDiv = document.getElementById('componentStatus');
+    if (statusDiv) {
+        statusDiv.remove();
+    }
+}
 // Track which button is currently pressed
 let pressedButton = null;
 
@@ -2668,6 +2760,33 @@ window.addEventListener('mouseup', (e) => {
     if (pressedButton) {
         releaseButton(pressedButton);
         pressedButton = null;
+    }
+});
+
+// ===== LOCK/UNLOCK COMPONENT WITH KEYBOARD =====
+window.addEventListener('keydown', (e) => {
+    // L key to lock selected component
+    if (e.key === 'l' || e.key === 'L') {
+        if (selectedComponent && selectedComponent.userData.type !== 'BREADBOARD') {
+            // Check if component is snapped to breadboard
+            if (selectedComponent.userData.snappedPins &&
+                (Array.isArray(selectedComponent.userData.snappedPins) ? selectedComponent.userData.snappedPins.length >= 2 : true)) {
+                selectedComponent.userData.isLocked = true;
+                console.log('🔒 Component LOCKED at pins:', selectedComponent.userData.snappedPins);
+                updateComponentStatus(selectedComponent);
+            } else {
+                console.warn('⚠️ Component must be snapped to breadboard before locking');
+            }
+        }
+    }
+
+    // U key to unlock selected component
+    if (e.key === 'u' || e.key === 'U') {
+        if (selectedComponent && selectedComponent.userData.isLocked) {
+            selectedComponent.userData.isLocked = false;
+            console.log('🔓 Component UNLOCKED');
+            updateComponentStatus(selectedComponent);
+        }
     }
 });
 // RESIZE
