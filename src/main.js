@@ -2534,12 +2534,61 @@ function spawnComponent(type) {
     }
 }
 
-// RESIZE
-window.addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-});
+// ===== BUTTON PRESS ANIMATION =====
+function pressButton(button) {
+    if (!button || button.userData.isPressed) return;
+
+    // Find the Button_Top mesh
+    let topMesh = null;
+    button.traverse((child) => {
+        if (child.isMesh && child.name === 'Button_Top') {
+            topMesh = child;
+        }
+    });
+
+    if (!topMesh) {
+        console.warn('⚠️ Button_Top mesh not found in button model');
+        return;
+    }
+
+    button.userData.isPressed = true;
+
+    // Store original position if not stored
+    if (!topMesh.userData._origPos) {
+        topMesh.userData._origPos = topMesh.position.clone();
+    }
+
+    // Move top down (press animation) - Z-axis for downward movement
+    // Increased depth to 0.15 for deeper press (half the button)
+    topMesh.position.z = (topMesh.userData._origPos.z || 0) - 0.15;
+
+    console.log('🔘 Button PRESSED! Position:', topMesh.position);
+}
+
+function releaseButton(button) {
+    if (!button || !button.userData.isPressed) return;
+
+    // Find the Button_Top mesh
+    let topMesh = null;
+    button.traverse((child) => {
+        if (child.isMesh && child.name === 'Button_Top') {
+            topMesh = child;
+        }
+    });
+
+    if (!topMesh || !topMesh.userData._origPos) return;
+
+    // Restore original position (spring back up)
+    topMesh.position.copy(topMesh.userData._origPos);
+    button.userData.isPressed = false;
+
+    console.log('🔘 Button RELEASED!');
+}
+
+// Track which button is currently pressed
+let pressedButton = null;
+
+
 
 function spawnBreadboard() {
     // Show loading
@@ -2853,6 +2902,34 @@ window.addEventListener('pointerdown', (e) => {
 window.addEventListener('wheel', hideWireContextMenu);
 window.addEventListener('resize', hideWireContextMenu);
 window.addEventListener('scroll', hideWireContextMenu);
+
+// ===== BUTTON PRESS MOUSE HANDLERS =====
+window.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return; // Only left click
+
+    updateMouse(e);
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(components, true);
+
+    for (const hit of intersects) {
+        const root = findComponentRoot(hit.object);
+        if (root && root.userData.type === 'BUTTON' && !wireMode) {
+            pressButton(root);
+            pressedButton = root;
+            break;
+        }
+    }
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (e.button !== 0) return;
+
+    if (pressedButton) {
+        releaseButton(pressedButton);
+        pressedButton = null;
+    }
+});
 
 
 function saveStateToLocalStorage() {
