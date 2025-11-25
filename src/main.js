@@ -5,7 +5,7 @@ import { initArduinoIDE, toggleIDE, getEditorInstance } from './arduinoIDE.js';
 import { initShuffle } from './Shuffle.js';
 import { colorDropdown } from './colorDropdown.js';
 import { initMenuBar, setProjectName } from './menuBar.js';
-
+import { showDeleteMenu, hideDeleteMenu } from './componentDeletion.js';
 import {
     createBreadboardIcon,
     startIconDrag,
@@ -412,7 +412,9 @@ createRoomBackground(scene);
 // RAYCASTER
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
+raycaster.params.Points.threshold = 0.5;
+raycaster.params.Line.threshold = 0.5;
+raycaster.params.Mesh.threshold = 0.5;  // Add this line
 let arduino = null;
 let pinObjects = [];
 let hoveredPin = null;
@@ -2706,7 +2708,136 @@ function ensureWireContextMenu() {
         hideWireContextMenu();
     });
 }
+// Delete breadboard component
+function deleteBreadboard(breadboard) {
+    if (!breadboard) return;
 
+    console.log('Deleting breadboard:', breadboard);
+
+    // Remove breadboard pins from pinObjects array
+    pinObjects = pinObjects.filter(pin => {
+        const root = findComponentRoot(pin);
+        return root !== breadboard;
+    });
+
+    // Remove from components array
+    components = components.filter(c => c !== breadboard);
+
+    // Remove from scene
+    scene.remove(breadboard);
+
+    // Dispose geometry and materials
+    breadboard.traverse((child) => {
+        if (child.geometry) {
+            child.geometry.dispose();
+        }
+        if (child.material) {
+            if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+            } else {
+                child.material.dispose();
+            }
+        }
+    });
+
+    // Hide Move Board button if no breadboards left
+    const remainingBreadboards = components.filter(c => c.userData.type === 'BREADBOARD');
+    if (remainingBreadboards.length === 0) {
+        const moveBoardBtn = document.getElementById('moveBoardBtn');
+        if (moveBoardBtn) {
+            moveBoardBtn.style.display = 'none';
+        }
+    }
+
+    console.log('Breadboard deleted successfully');
+}
+// Right-click handler for breadboard
+// Right-click handler for breadboard, button, and LED
+window.addEventListener('contextmenu', (event) => {
+    // Only handle right-clicks on the canvas
+    if (event.target !== renderer.domElement) return;
+
+    // Update raycaster
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check for component intersections
+    const intersects = raycaster.intersectObjects(components, true);
+
+    if (intersects.length > 0) {
+        // Find the component root object
+        let component = intersects[0].object;
+        while (component.parent && !component.userData.type) {
+            component = component.parent;
+        }
+
+        // Handle different component types
+        if (component.userData.type === 'BREADBOARD') {
+            showDeleteMenu(event, component, 'Breadboard', deleteBreadboard);
+        } else if (component.userData.type === 'BUTTON') {
+            showDeleteMenu(event, component, 'Button', deleteButton);
+        } else if (component.userData.type === 'LED') {
+            showDeleteMenu(event, component, 'LED', deleteLED);
+        }
+    }
+});
+// Delete button component
+function deleteButton(button) {
+    if (!button) return;
+
+    console.log('Deleting button:', button);
+
+    // Remove from components array
+    components = components.filter(c => c !== button);
+
+    // Remove from scene
+    scene.remove(button);
+
+    // Dispose geometry and materials
+    button.traverse((child) => {
+        if (child.geometry) {
+            child.geometry.dispose();
+        }
+        if (child.material) {
+            if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+            } else {
+                child.material.dispose();
+            }
+        }
+    });
+
+    console.log('Button deleted successfully');
+}
+// Delete LED component
+function deleteLED(led) {
+    if (!led) return;
+
+    console.log('Deleting LED:', led);
+
+    // Remove from components array
+    components = components.filter(c => c !== led);
+
+    // Remove from scene
+    scene.remove(led);
+
+    // Dispose geometry and materials
+    led.traverse((child) => {
+        if (child.geometry) {
+            child.geometry.dispose();
+        }
+        if (child.material) {
+            if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+            } else {
+                child.material.dispose();
+            }
+        }
+    });
+
+    console.log('LED deleted successfully');
+}
 // Show menu at event position for a specific wire
 function showWireContextMenu(event, wire) {
     ensureWireContextMenu();
