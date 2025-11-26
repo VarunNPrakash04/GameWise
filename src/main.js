@@ -537,6 +537,11 @@ const moveBoardBtn = document.getElementById("moveBoardBtn");
 
 let breadboardMoveMode = false;
 let breadboard = null;
+let breadboardDragging = false;
+let breadboardDragOffset = new THREE.Vector3();
+let breadboardDraggingPlane = new THREE.Plane();
+let axisLock = null; // 'x', 'y', 'z', or null
+let breadboardStartPos = new THREE.Vector3();
 
 // TOGGLE MOVE BOARD MODE
 moveBoardBtn.addEventListener("click", () => {
@@ -582,6 +587,114 @@ moveBoardBtn.addEventListener("click", () => {
         // Unlock camera controls
         controls.enabled = true;
         console.log("🔓 Camera unlocked - Move Board mode OFF");
+    }
+});
+
+// BREADBOARD DRAGGING HANDLERS
+window.addEventListener('pointerdown', (e) => {
+    if (!breadboardMoveMode || !breadboard) return;
+
+    // Update mouse position
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const mouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const mouse = new THREE.Vector2(mouseX, mouseY);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check if clicking on breadboard (but not the rotation icon)
+    const intersects = raycaster.intersectObject(breadboard, true);
+
+    if (intersects.length > 0) {
+        // Check if we hit the rotation icon
+        const hitIcon = intersects[0].object.parent?.userData?.isRotationIcon ||
+            intersects[0].object.userData?.isRotationIcon;
+
+        if (!hitIcon) {
+            // Start dragging breadboard
+            breadboardDragging = true;
+            breadboardStartPos.copy(breadboard.position);
+
+            // Set up dragging plane (XZ plane at breadboard height)
+            const planeNormal = new THREE.Vector3(0, 1, 0); // Y-up
+            const planePoint = new THREE.Vector3();
+            breadboard.getWorldPosition(planePoint);
+            breadboardDraggingPlane.setFromNormalAndCoplanarPoint(planeNormal, planePoint);
+
+            // Calculate offset
+            const intersectPoint = new THREE.Vector3();
+            raycaster.ray.intersectPlane(breadboardDraggingPlane, intersectPoint);
+            breadboardDragOffset.subVectors(planePoint, intersectPoint);
+
+            console.log('🔵 Started dragging breadboard');
+        }
+    }
+});
+
+window.addEventListener('pointermove', (e) => {
+    if (!breadboardDragging || !breadboard) return;
+
+    // Update mouse position
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const mouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const mouse = new THREE.Vector2(mouseX, mouseY);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    // Get intersection with dragging plane
+    const intersectPoint = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(breadboardDraggingPlane, intersectPoint)) {
+        // Calculate new position
+        const newPos = intersectPoint.clone().add(breadboardDragOffset);
+
+        // Apply axis lock if active
+        if (axisLock === 'x') {
+            // Only move on X axis
+            breadboard.position.x = newPos.x;
+        } else if (axisLock === 'y') {
+            // Only move on Y axis
+            breadboard.position.y = newPos.y;
+        } else if (axisLock === 'z') {
+            // Only move on Z axis
+            breadboard.position.z = newPos.z;
+        } else {
+            // Free movement (no axis lock)
+            breadboard.position.copy(newPos);
+        }
+
+        // Update all connected wires
+        updateConnectedWires(breadboard);
+    }
+});
+
+// AXIS LOCK KEYBOARD HANDLERS
+window.addEventListener('keydown', (e) => {
+    if (!breadboardMoveMode || !breadboardDragging) return;
+
+    const key = e.key.toLowerCase();
+    if (key === 'x' || key === 'y' || key === 'z') {
+        axisLock = key;
+        console.log(`🔒 Axis locked to: ${key.toUpperCase()}`);
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    if (key === 'x' || key === 'y' || key === 'z') {
+        axisLock = null;
+        console.log('🔓 Axis lock released');
+    }
+});
+
+
+window.addEventListener('pointerup', () => {
+    if (breadboardDragging) {
+        breadboardDragging = false;
+        axisLock = null; // Reset axis lock
+        console.log('🔵 Stopped dragging breadboard');
     }
 });
 
@@ -2692,9 +2805,7 @@ function spawnBreadboard() {
             breadboard.position.set(0, 0, 2);
             breadboard.scale.set(1, 1, 1);
 
-
             breadboard.userData.type = "BREADBOARD";
-
             // Set breadboard invisible BEFORE adding to scene
             breadboard.traverse((child) => {
                 if (child.material) {
@@ -2702,12 +2813,9 @@ function spawnBreadboard() {
                     child.material.opacity = 0;
                 }
             });
-
             scene.add(breadboard);
-
             // Animate breadboard spawn
             animateComponentSpawn(breadboard, 0.3);
-
             components.push(breadboard);
 
             // Detect breadboard pins (names must start with BB_ )
