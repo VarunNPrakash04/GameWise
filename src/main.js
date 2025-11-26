@@ -741,7 +741,7 @@ window.addEventListener('pointerup', () => {
 // TOGGLE WIRE MODE
 addWireBtn.addEventListener("click", () => {
     wireMode = !wireMode;
-    addWireBtn.style.background = wireMode ? "#0066ff" : "#333";
+    //addWireBtn.style.background = wireMode ? "#0066ff" : "#333";
     const wireBtnSpan = addWireBtn.querySelector('span');
     if (wireBtnSpan) {
         wireBtnSpan.textContent = wireMode ? "Wire Mode: ON" : "Wire";
