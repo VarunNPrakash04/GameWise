@@ -356,7 +356,45 @@ function createButtonPlaceholder() {
     return group;
 
 }
+function createBuzzerPlaceholder() {
+    const buzzer = new THREE.Group();
+    buzzer.userData.type = "BUZZER";
+    buzzer.userData.isComponent = true;
 
+    const buzzerLoader = new GLTFLoader();
+    buzzerLoader.load('/Buzzer.glb', (gltf) => {
+        const buzzerModel = gltf.scene;
+
+        // Scale appropriately
+        buzzerModel.scale.set(0.15, 0.15, 0.15);
+
+        // Apply material settings
+        buzzerModel.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material) {
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                child.material = materials.map((mat) => {
+                    if (mat.isMeshStandardMaterial) {
+                        mat.roughness = 0.4;
+                        mat.metalness = 0.3;
+                        mat.envMapIntensity = 1.0;
+                        mat.needsUpdate = true;
+                    }
+                    return mat;
+                });
+                if (child.material.length === 1) {
+                    child.material = child.material[0];
+                }
+            }
+        });
+
+        buzzer.add(buzzerModel);
+        console.log("Buzzer model loaded");
+    }, undefined, (error) => {
+        console.error("Error loading Buzzer model:", error);
+    });
+
+    return buzzer;
+}
 // SCENE SETUP
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a1a);
@@ -704,7 +742,10 @@ window.addEventListener('pointerup', () => {
 addWireBtn.addEventListener("click", () => {
     wireMode = !wireMode;
     addWireBtn.style.background = wireMode ? "#0066ff" : "#333";
-    addWireBtn.textContent = wireMode ? "Wire Mode: ON" : "Add Wire";
+    const wireBtnSpan = addWireBtn.querySelector('span');
+    if (wireBtnSpan) {
+        wireBtnSpan.textContent = wireMode ? "Wire Mode: ON" : "Wire";
+    }
     firstPin = null;
     console.log(wireMode)
     // Show/hide color dropdown based on wire mode
@@ -2684,6 +2725,7 @@ function spawnComponent(type) {
     if (type === "LED") obj = createLEDPlaceholder();
     if (type === "RESISTOR") obj = createResistorPlaceholder();
     if (type === "BUTTON") obj = createButtonPlaceholder();
+    if (type === "BUZZER") obj = createBuzzerPlaceholder(); // Add this line
     if (type === "BREADBOARD") {
         spawnBreadboard();
         return;
@@ -2692,7 +2734,6 @@ function spawnComponent(type) {
     if (obj) {
         scene.add(obj);
         components.push(obj);
-        // Auto-select newly spawned component
         deselectComponent();
         selectedComponent = obj;
         highlightComponent(obj, true);

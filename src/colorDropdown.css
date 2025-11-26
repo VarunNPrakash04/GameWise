@@ -9,44 +9,64 @@
 
 /* Color Toggle Button - matches components toggle style */
 .color-dropdown-toggle {
-    padding: 10px 16px;
-    background: #333;
-    color: white;
-    border-radius: 6px;
-    border: 1px solid #555;
+    position: fixed;
+    left: 55px;
+    /* To the right of Components button area */
+    top: 40px;
+    /* Attached to top of screen */
+    background: #67bbfb;
+    color: #ffffff;
+    border: none;
+    padding: 8px 12px;
+    width: 100px;
+    /* Horizontal width */
+    height: 40px;
+    /* Horizontal height */
     cursor: pointer;
+    z-index: 999;
+    transition: all 0.3s;
     font-size: 14px;
-    min-width: 80px;
-    font-weight: 600;
-    transition: all 0.2s ease;
+    font-weight: bold;
+    letter-spacing: 1px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    writing-mode: horizontal-tb;
+    /* Horizontal text */
+    text-orientation: mixed;
+    border-radius: 0 0 12px 12px;
+    /* Rounded on bottom only */
+    box-shadow: 0 3px 10px rgba(19, 85, 226, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .color-dropdown-toggle:hover {
-    background: #444;
-    border-color: #666;
+    background: #5aa8e8;
+    transform: translateY(5px);
+    /* Slide down on hover */
+    box-shadow: 0 5px 15px rgba(19, 85, 226, 0.5);
 }
 
-/* Color Dropdown Menu - matches components menu style */
 .color-dropdown-menu {
-    position: absolute;
-    top: 44px;
-    left: 0;
+    position: fixed;
+    left: 85px;
+    /* Aligned with color button */
+    top: 45px;
+    /* Just below the color button (40px height + 5px gap) */
     display: none;
     flex-direction: column;
     gap: 8px;
-    background: #1a1a1a;
-    padding: 8px;
-    border-radius: 8px;
-    border: 1px solid #333;
-    min-width: 180px;
-    max-height: 280px;
+    background: linear-gradient(135deg, rgba(30, 30, 30, 0.95), rgba(42, 42, 42, 0.92));
+    backdrop-filter: blur(16px);
+    padding: 12px;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    z-index: 10001;
+    min-width: 150px;
+    max-height: 400px;
     overflow-y: auto;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    z-index: 300;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
-    transform-origin: top left;
-    will-change: transform, opacity;
 }
 
 .color-dropdown-menu.visible {
