@@ -490,6 +490,7 @@ let hoveredPin = null;
 let wireConnections = [];
 let wireIdCounter = 0;
 
+
 // COMPONENT TRACKING
 let components = [];
 let selectedComponent = null;
@@ -515,6 +516,10 @@ const WIRE_TUBULAR_SEGMENTS = 96;
 // Track current mouse position for R key rotation
 let currentMouseX = 0;
 let currentMouseY = 0;
+
+// Track mouse button state for button component interaction
+let rightMouseDown = false;
+let buttonBeingDragged = null;
 
 window.components = components;
 window.wireConnections = wireConnections;
@@ -544,6 +549,14 @@ window.addEventListener('keyup', (e) => {
             controls.enabled = true; // Unlock camera
             console.log("🔓 Camera unlocked - LED rotation mode OFF (R key)");
         }
+    }
+});
+
+// Prevent context menu on right-click (for button dragging)
+window.addEventListener('contextmenu', (e) => {
+    // Only prevent if right-clicking on a button component
+    if (buttonBeingDragged || rightMouseDown) {
+        e.preventDefault();
     }
 });
 
@@ -1406,7 +1419,33 @@ window.addEventListener('pointerdown', (e) => {
             // Select component for deletion and start dragging
             deselectComponent();
             selectedComponent = rootComponent;
-            draggingComponent = rootComponent;
+
+            // Special handling for BUTTON component based on mouse button
+            if (rootComponent.userData.type === "BUTTON") {
+                const isLeftClick = e.button === 0;
+                const isRightClick = e.button === 2;
+
+                if (isLeftClick) {
+                    // Left-click: Press button only, don't allow dragging
+                    highlightComponent(selectedComponent, false);
+                    console.log("🖱️ Left-click on button: Press mode (no drag)");
+                    // Don't set draggingComponent, so it won't move
+                    return;
+                } else if (isRightClick) {
+                    // Right-click: Allow dragging
+                    rightMouseDown = true;
+                    buttonBeingDragged = rootComponent;
+                    draggingComponent = rootComponent;
+                    console.log("🖱️ Right-click on button: Drag mode enabled");
+                } else {
+                    // Middle click or other - ignore
+                    return;
+                }
+            } else {
+                // For non-button components, always allow dragging (existing behavior)
+                draggingComponent = rootComponent;
+            }
+
             highlightComponent(selectedComponent, false);
 
             // Clear old LED pin highlights when picking up LED
@@ -1764,6 +1803,13 @@ window.addEventListener('pointerup', (e) => {
         snapToNearestPin(draggingComponent);
         // Keep selectedComponent selected for potential deletion
         draggingComponent = null;
+
+        // Reset button dragging state
+        if (buttonBeingDragged) {
+            rightMouseDown = false;
+            buttonBeingDragged = null;
+            console.log("🖱️ Button drag completed");
+        }
     }
 
     // Handle wire endpoint drop
@@ -2843,6 +2889,10 @@ window.addEventListener('mousedown', (e) => {
             if (root && root.userData.type === 'BUTTON' && !wireMode) {
                 pressButton(root);
                 pressedButton = root;
+                // Trigger simulator action if simulation is running
+                if (window.simulator && window.simulator.isRunning) {
+                    window.simulator.handleButtonPress(root);
+                }
                 break;
             }
         }
@@ -2854,6 +2904,10 @@ window.addEventListener('mouseup', (e) => {
 
     if (pressedButton) {
         releaseButton(pressedButton);
+        // Trigger simulator release action if simulation is running
+        if (window.simulator && window.simulator.isRunning) {
+            window.simulator.handleButtonRelease(pressedButton);
+        }
         pressedButton = null;
     }
 });

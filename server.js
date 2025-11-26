@@ -91,24 +91,20 @@ You MUST output ONLY this JSON, with no explanations, no markdown:
   "syntaxErrors": [],
   "circuitValid": true,
   "circuitIssues": [],
-  "suggestedConnections": [],
   "message": "Ready to upload!",
-  "simulation": {
-    "pins": {
-      "D13": { "mode": "OUTPUT", "state": "HIGH" }
-    },
-    "components": {
-      "LED": [
-        {
-          "connectedToPin": "D13",
-          "shouldGlow": true,
-          "brightness": 255
-        }
-      ],
-      "BUTTON": []
+  "componentStates": {
+    "LED": "HIGH",
+    "BUTTON": {
+      "pressed": {"LED": "HIGH"},
+      "released": {"LED": "LOW"}
     }
   }
 }
+
+**Rules:**
+1. If digitalWrite(13, HIGH) and LED on pin 13 → LED: "HIGH"
+2. If digitalWrite(13, LOW) → LED: "LOW"
+3. If button controls LED → BUTTON with pressed/released states
 
 -------------------------------------------------------------
 
