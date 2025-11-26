@@ -6,6 +6,7 @@ import { initShuffle } from './Shuffle.js';
 import { colorDropdown } from './colorDropdown.js';
 import { initMenuBar, setProjectName } from './menuBar.js';
 import { showDeleteMenu, hideDeleteMenu } from './componentDeletion.js';
+import { animateComponentSpawn } from './buttonAnimation.js';
 import { initButtonAnimation } from './buttonAnimation.js';
 import {
     createBreadboardIcon,
@@ -2691,9 +2692,22 @@ function spawnBreadboard() {
             breadboard.position.set(0, 0, 2);
             breadboard.scale.set(1, 1, 1);
 
+
             breadboard.userData.type = "BREADBOARD";
 
+            // Set breadboard invisible BEFORE adding to scene
+            breadboard.traverse((child) => {
+                if (child.material) {
+                    child.material.transparent = true;
+                    child.material.opacity = 0;
+                }
+            });
+
             scene.add(breadboard);
+
+            // Animate breadboard spawn
+            animateComponentSpawn(breadboard, 0.3);
+
             components.push(breadboard);
 
             // Detect breadboard pins (names must start with BB_ )
