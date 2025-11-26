@@ -20,11 +20,16 @@ let isCodeVerified = false; // Track if code passed verification
  * Initialize the Arduino IDE panel
  */
 export function initArduinoIDE(wireConnections, components, wires, scene) {
+    console.log('🔍 Initializing IDE with:', {
+        componentsCount: components.length,
+        wiresCount: wireConnections.length
+    });
     wireConnectionsRef = wireConnections;
     componentsRef = components;
     wiresRef = wires;
     sceneRef = scene;
-    simulator = new CircuitSimulator(scene, components, wires);
+    simulator = new CircuitSimulator(scene, components, wireConnections);
+    window.simulator = simulator; // Expose globally
     // Create the IDE panel container
     idePanel = document.createElement('div');
     idePanel.id = 'arduino-ide-panel';

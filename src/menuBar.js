@@ -294,6 +294,21 @@ function openProjectFromFile(loadCallback) {
                     }
                     console.log(`✅ Project loaded: ${file.name}`);
                 }, 2000); // Give time for breadboard and wires to load
+                // After loading file data
+                // After loading file data - use setTimeout to ensure components are loaded
+                setTimeout(() => {
+                    console.log('🔍 Checking arrays before update:', {
+                        windowComponents: window.components?.length,
+                        windowWireConnections: window.wireConnections?.length,
+                        simulatorComponents: window.simulator?.components?.length,
+                        simulatorWires: window.simulator?.wires?.length
+                    });
+
+                    if (window.simulator && window.components && window.wireConnections) {
+                        window.simulator.updateCircuitData(window.components, window.wireConnections);
+                        console.log('🔄 Simulator updated after file load');
+                    }
+                }, 2500);
 
             } catch (error) {
                 if (loadingOverlay) {
