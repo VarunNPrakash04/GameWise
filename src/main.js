@@ -7,6 +7,7 @@ import { colorDropdown } from './colorDropdown.js';
 import { initMenuBar, setProjectName } from './menuBar.js';
 import { showDeleteMenu, hideDeleteMenu } from './componentDeletion.js';
 import { animateComponentSpawn } from './buttonAnimation.js';
+import { createCameraArrows } from './cameraControls.js';
 import { initButtonAnimation } from './buttonAnimation.js';
 import {
     createBreadboardIcon,
@@ -391,7 +392,8 @@ controls.maxPolarAngle = Math.PI / 2 - 0.03; // stop just above horizon - preven
 // Limit zoom distance to reasonable range
 controls.minDistance = 1.2;
 controls.maxDistance = 100;
-
+// Create camera control arrows
+createCameraArrows(controls, camera);
 // LIGHTING SETUP - Material Preview Mode (Blender-style)
 // Strong hemisphere light for even, environment-based lighting (like Blender's Material Preview)
 // Sky color (top) and ground color (bottom) - simulating studio environment with warm tones
