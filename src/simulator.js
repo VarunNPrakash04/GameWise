@@ -68,27 +68,77 @@ export class CircuitSimulator {
     /**
      * Start simulation with AI-provided instructions
      */
-    startSimulation(simulationData) {
-        console.log('🎮 Starting simulation...');
+    startSimulation(componentStates) {
+        console.log('🎮 Starting with states:', componentStates);
 
         this.isRunning = true;
-        this.pinStates = simulationData.pins || {};
 
-        // Apply LED states
-        if (simulationData.components?.LED) {
-            simulationData.components.LED.forEach(ledConfig => {
-                this.setLEDGlow(ledConfig.connectedToPin, ledConfig.shouldGlow, ledConfig.brightness);
+        // Apply LED state - find which LED is connected to the active pin
+        if (componentStates.LED) {
+            const shouldGlow = componentStates.LED === 'HIGH';
+
+            // Find which pin is being driven (look for digitalWrite in code)
+            // For now, assume it's the LED connected to any HIGH pin
+            this.components.forEach(comp => {
+                if (comp.userData.type === 'LED') {
+                    // Check if this LED is connected to a powered pin
+                    const isConnected = this.isLEDConnectedToPoweredPin(comp);
+
+                    if (isConnected) {
+                        comp.traverse(child => {
+                            if (child.isMesh && child.material) {
+                                child.material.emissive = shouldGlow ? new THREE.Color(0xff0000) : new THREE.Color(0x000000);
+                                child.material.emissiveIntensity = shouldGlow ? 2 : 0;
+                                child.material.needsUpdate = true;
+                            }
+                        });
+                        console.log(`💡 LED glowing: ${shouldGlow}`);
+                    }
+                }
             });
         }
 
-        // Setup button interactions
-        if (simulationData.components?.BUTTON) {
-            simulationData.components.BUTTON.forEach(buttonConfig => {
-                this.setupButtonInteraction(buttonConfig);
+        // Setup button states
+        if (componentStates.BUTTON) {
+            this.components.forEach(comp => {
+                if (comp.userData.type === 'BUTTON') {
+                    comp.userData.buttonStates = componentStates.BUTTON;
+                }
             });
         }
 
         console.log('✅ Simulation started');
+    }
+    /**
+ * Check if LED is connected to a powered Arduino pin
+ */
+    isLEDConnectedToPoweredPin(ledComponent) {
+        const ledPins = ledComponent.userData.snappedPins;
+        if (!ledPins) return false;
+
+        // Check if LED anode is connected to any Arduino digital pin via breadboard
+        const hasArduinoConnection = this.wires.some(wire => {
+            // Check if wire connects an Arduino pin to the LED's breadboard row
+            const isFromArduino = wire.from && wire.from.startsWith('Pin_');
+            const isToLEDRow = wire.to && this.isInSameRow(wire.to, ledPins.long);
+
+            return isFromArduino && isToLEDRow;
+        });
+
+        return hasArduinoConnection;
+    }
+
+    /**
+     * Check if two breadboard pins are in the same row
+     */
+    isInSameRow(pin1, pin2) {
+        if (!pin1 || !pin2) return false;
+
+        // Extract row number (e.g., BB_D3 -> 3)
+        const row1 = pin1.match(/\d+$/)?.[0];
+        const row2 = pin2.match(/\d+$/)?.[0];
+
+        return row1 === row2;
     }
 
     /**

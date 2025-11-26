@@ -244,17 +244,10 @@ function setupEventListeners() {
             }
 
             addTerminalLine('✅ Upload complete!', 'success');
-            addTerminalLine('', 'info');
-            addTerminalLine('🎮 Starting simulation...', 'info');
+            addTerminalLine('🎮 Simulation started!', 'success');
 
             // Start simulation
-            simulator.startSimulation(result.simulation);
-
-            addTerminalLine('✅ Simulation running!', 'success');
-            addTerminalLine('', 'info');
-            addTerminalLine('Interact with components to see results:', 'info');
-            addTerminalLine('  - LEDs will glow based on pin states', 'info');
-            addTerminalLine('  - Click buttons to trigger actions', 'info');
+            simulator.startSimulation(result.componentStates);
 
         } catch (error) {
             addTerminalLine('❌ Upload failed!', 'error');

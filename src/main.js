@@ -490,6 +490,7 @@ let hoveredPin = null;
 let wireConnections = [];
 let wireIdCounter = 0;
 
+
 // COMPONENT TRACKING
 let components = [];
 let selectedComponent = null;
@@ -2843,6 +2844,10 @@ window.addEventListener('mousedown', (e) => {
             if (root && root.userData.type === 'BUTTON' && !wireMode) {
                 pressButton(root);
                 pressedButton = root;
+                // Trigger simulator action if simulation is running
+                if (window.simulator && window.simulator.isRunning) {
+                    window.simulator.handleButtonPress(root);
+                }
                 break;
             }
         }
@@ -2854,6 +2859,10 @@ window.addEventListener('mouseup', (e) => {
 
     if (pressedButton) {
         releaseButton(pressedButton);
+        // Trigger simulator release action if simulation is running
+        if (window.simulator && window.simulator.isRunning) {
+            window.simulator.handleButtonRelease(pressedButton);
+        }
         pressedButton = null;
     }
 });
