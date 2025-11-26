@@ -94,6 +94,13 @@ ${code}
   "syntaxErrors": [],
   "circuitValid": true,
   "circuitIssues": [],
+  "suggestedConnections": [
+    {
+      "component": "LED",
+      "issue": "Cathode not connected to GND",
+      "suggestion": "Add wire: BB_D1 → Pin_GND"
+    }
+  ],
   "message": "Ready to upload!",
   "simulation": {
     "pins": {
@@ -114,7 +121,10 @@ ${code}
 
 **Instructions:**
 1. Set syntaxValid to false if code has syntax errors, list them in syntaxErrors array
-2. Set circuitValid to false if circuit doesn't match code, list issues in circuitIssues array
+2. Set circuitValid to false if circuit doesn't match code. In circuitIssues array, provide:
+   - What's wrong with current connections
+   - Suggested fix using EXACT pin names (Pin_13, BB_C3, etc.)
+   - Example: "LED cathode should connect to GND. Suggested: Wire from BB_D1 to Pin_GND"
 3. In simulation.pins: list ALL pins used in pinMode() with their mode and initial state
 4. In simulation.components.LED: for each LED in circuit:
    - Find which breadboard row the LED is on (e.g., BB_D3 is in row 3)
@@ -134,6 +144,18 @@ Then button config should be:
     "action": "TOGGLE"
   }
 }
+  
+**STEP 4: PROVIDE HELPFUL SUGGESTIONS**
+
+If circuitValid is false, in suggestedConnections array provide:
+- component: Which component has the issue (LED, BUTTON, etc.)
+- issue: What's wrong
+- suggestion: Exact wire to add using real pin names from the circuit
+  Example: "Add wire: BB_D1 → Pin_GND" or "Move wire from BB_C5 to BB_C3"
+
+Use ONLY these pin naming formats:
+- Arduino: Pin_13, Pin_GND, Pin_5V, Pin_D2, etc.
+- Breadboard: BB_A1, BB_B5, BB_C3, VCC001, GND_1, etc.
 
 RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT.`;
 }
