@@ -1214,6 +1214,48 @@
     .connection-log::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
+
+    /* Connection Tabs */
+    .connection-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 8px 12px 0 12px;
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+    }
+
+    .connection-tab {
+      flex: 1;
+      padding: 8px 16px;
+      background: rgba(50, 50, 50, 0.5);
+      color: #aaa;
+      border: none;
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .connection-tab:hover {
+      background: rgba(70, 70, 70, 0.7);
+      color: #fff;
+    }
+
+    .connection-tab.active {
+      background: rgba(30, 30, 30, 0.95);
+      color: #64B5F6;
+      border-bottom: 2px solid #64B5F6;
+    }
+
+    /* Hide entries based on active tab */
+    .connection-log[data-active-tab="wires"] .connection-log-entry:not(.wire) {
+      display: none;
+    }
+
+    .connection-log[data-active-tab="components"] .connection-log-entry:not(.snap):not(.component) {
+      display: none;
+    }
   </style>
   <link rel="stylesheet" href="/src/Shuffle.css">
 </head>
@@ -1727,7 +1769,14 @@
           <button id="connectionToggleBtn" class="connection-toggle-btn">▲</button>
         </div>
         <div id="connectionContent" class="connection-content">
-          <div id="connectionLog" class="connection-log"></div>
+          <!-- Tab Navigation -->
+          <div class="connection-tabs">
+            <button class="connection-tab active" data-tab="all">All</button>
+            <button class="connection-tab" data-tab="wires">Wires</button>
+            <button class="connection-tab" data-tab="components">Components</button>
+          </div>
+          <!-- Tab Content -->
+          <div id="connectionLog" class="connection-log" data-active-tab="all"></div>
         </div>
       </div>
 

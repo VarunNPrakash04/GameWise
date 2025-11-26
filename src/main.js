@@ -1941,10 +1941,7 @@ function drawWire(pin1, pin2, customColor = null) {
     });
 
     console.log("CONNECTION MAP:", wireConnections);
-    logConnection(
-        `🔌 Wire connected: <span class="pin-info">${pin1.name}</span> → <span class="pin-info">${pin2.name}</span>`,
-        'wire'
-    );
+
 
     // Log wire connection
     logConnection(
@@ -3834,6 +3831,24 @@ document.querySelector('.connection-header').addEventListener('click', () => {
     connectionConsole.classList.toggle('open', isConnectionConsoleOpen);
 });
 
+// Tab switching functionality
+const connectionTabs = document.querySelectorAll('.connection-tab');
+connectionTabs.forEach(tab => {
+    tab.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        // Remove active class from all tabs
+        connectionTabs.forEach(t => t.classList.remove('active'));
+
+        // Add active class to clicked tab
+        tab.classList.add('active');
+
+        // Update active tab data attribute
+        const tabType = tab.dataset.tab;
+        connectionLog.dataset.activeTab = tabType;
+    });
+});
+
 // Log connection info
 function logConnection(message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
@@ -4030,7 +4045,14 @@ function manualSnapLED(led, anodePin, cathodePin) {
     }
 
     console.log(`✅ LED manually snapped to ${anodePin.name} & ${cathodePin.name}`);
+
+    // Log manual LED snapping
+    logConnection(
+        `📍 <span class="component-name">LED</span> manually snapped: Anode (long leg) → <span class="pin-info">${anodePin.name}</span>, Cathode (short leg) → <span class="pin-info">${cathodePin.name}</span>`,
+        'snap'
+    );
 }
+
 
 function manualSnapButton(button, pins) {
     // Calculate average position
@@ -4057,4 +4079,11 @@ function manualSnapButton(button, pins) {
     });
 
     console.log(`✅ Button manually snapped to ${pins.length} pins:`, button.userData.snappedPins);
+
+    // Log manual button snapping
+    const pinNames = pins.map(p => `<span class="pin-info">${p.name}</span>`).join(', ');
+    logConnection(
+        `📍 <span class="component-name">BUTTON</span> manually snapped to pins: ${pinNames}`,
+        'snap'
+    );
 }
