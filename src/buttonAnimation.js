@@ -162,4 +162,66 @@ export function triggerArduinoAnimation(arduino) {
             animateArduinoFadeIn(arduino);
         }, { once: true });
     }
-}                                                   
+}
+/**
+ * Animate component spawn (for Breadboard, Button, LED)
+ * @param {THREE.Object3D} component - The component to animate
+ * @param {number} duration - Animation duration in seconds (default 0.3)
+ */
+export function animateComponentSpawn(component, duration = 0.3) {
+    if (!component) {
+        console.warn('⚠️ Component not found for spawn animation');
+        return;
+    }
+
+    console.log('🎬 Animating component spawn:', component.userData.type);
+
+    // Kill any existing animations (safety)
+    gsap.killTweensOf(component.position);
+    gsap.killTweensOf(component.scale);
+
+    // Store original position
+    const originalY = component.position.y;
+
+    // Set initial state (slightly below, smaller, invisible)
+    component.position.y = originalY - 0.3;
+    component.scale.set(0.85, 0.85, 0.85);
+
+    // Set materials to transparent and invisible
+    component.traverse((child) => {
+        if (child.material) {
+            child.material.transparent = true;
+            child.material.opacity = 0;
+        }
+    });
+
+    // Animate position
+    gsap.to(component.position, {
+        y: originalY,
+        duration: duration,
+        ease: 'back.out(1.2)',
+        delay: 0.1
+    });
+
+    // Animate scale
+    gsap.to(component.scale, {
+        x: 1,
+        y: 1,
+        z: 1,
+        duration: duration,
+        ease: 'back.out(1.2)',
+        delay: 0.1
+    });
+
+    // Animate opacity for all materials
+    component.traverse((child) => {
+        if (child.material) {
+            gsap.to(child.material, {
+                opacity: 1,
+                duration: duration,
+                ease: 'power2.out',
+                delay: 0.1
+            });
+        }
+    });
+}
