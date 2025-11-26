@@ -568,6 +568,95 @@
       z-index: 200;
     }
 
+    /* Electric border animation for Components button */
+    #components-toggle {
+      position: relative;
+      overflow: visible;
+    }
+
+    #components-toggle::before,
+    #moveBoardBtn::before,
+    .color-dropdown-toggle::before,
+    #ide-toggle-btn::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(45deg,
+          #00f0ff, #00d4ff, #0080ff, #00f0ff,
+          #00d4ff, #0080ff, #00f0ff);
+      background-size: 400% 400%;
+      border-radius: 0 14px 14px 0;
+      z-index: -1;
+      animation: electricBorder 3s ease infinite;
+      filter: blur(2px);
+      opacity: 0.8;
+    }
+
+    @keyframes electricBorder {
+
+      0%,
+      100% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+
+    #components-toggle:hover::before,
+    #moveBoardBtn:hover::before,
+    .color-dropdown-toggle:hover::before,
+    #ide-toggle-btn:hover::before {
+      opacity: 1;
+      filter: blur(3px);
+      animation: electricBorder 1.5s ease infinite;
+    }
+
+    /* Animated Border on Hover for Component Buttons */
+    .spawn {
+      position: relative;
+      border: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .spawn::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(45deg,
+          #00f0ff, #00d4ff, #0080ff, #00f0ff,
+          #00d4ff, #0080ff, #00f0ff);
+      background-size: 400% 400%;
+      border-radius: 12px;
+      z-index: -1;
+      opacity: 0;
+      animation: borderGradient 3s ease infinite;
+      transition: opacity 0.3s ease;
+    }
+
+    .spawn:hover::before {
+      opacity: 1;
+    }
+
+    @keyframes borderGradient {
+
+      0%,
+      100% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+
     /* Components stacked menu */
     .components-container {
       position: relative;
@@ -1483,7 +1572,7 @@
     <!-- UI BAR -->
     <div id="uiBar">
       <div class="components-container">
-        <button id="components-toggle">Components</button>
+        <button id="components-toggle" class="electric-border">Components</button>
         <div id="components-menu" aria-hidden="true">
           <div class="wire-control" id="wireControl">
             <!-- Hidden select for backward compatibility with main.js -->

@@ -156,3 +156,36 @@
         min-width: 160px;
     }
 }
+
+/* Color-specific glow on hover */
+.color-option[data-value="0xff0000"]:hover {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
+
+.color-option[data-value="0x00ff00"]:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
+
+.color-option[data-value="0x0000ff"]:hover {
+    box-shadow: 0 0 20px rgba(0, 0, 255, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
+
+.color-option[data-value="0xffff00"]:hover {
+    box-shadow: 0 0 20px rgba(255, 255, 0, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
+
+.color-option[data-value="0xff00ff"]:hover {
+    box-shadow: 0 0 20px rgba(255, 0, 255, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
+
+.color-option[data-value="0x00ffff"]:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
+
+.color-option[data-value="0xffffff"]:hover {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
+
+.color-option[data-value="0x000000"]:hover {
+    box-shadow: 0 0 20px rgba(128, 128, 128, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
+}
