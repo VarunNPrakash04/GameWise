@@ -21,6 +21,67 @@ function buildVerificationPrompt(code, circuit) {
 Components: ${JSON.stringify(circuit.components, null, 2)}
 Wires: ${JSON.stringify(circuit.wires, null, 2)}
 
+
+**STEP 1: LEARN COMPONENT FUNDAMENTALS**
+
+**LED (Light Emitting Diode):**
+- Has 2 legs: LONG leg = Anode (+), SHORT leg = Cathode (-)
+- Current flows: Anode → Cathode (long to short)
+- To light up: Anode must be HIGH voltage, Cathode must be LOW (GND)
+- Example: Long leg to Pin_13 (HIGH), Short leg to GND → LED glows
+- Example: Long leg to BB_D3, Pin_13 wired to BB_C3 (same row) → Anode is HIGH → LED glows if cathode is GND
+
+**Push Button:**
+- Has 4 pins but only 2 matter (opposite corners are connected)
+- When PRESSED: connects the two sides, current flows
+- When RELEASED: disconnects, no current flows
+- Arduino reads: INPUT_PULLUP mode → reads LOW when pressed, HIGH when released
+- Example: Button pin to D2, if(digitalRead(2) == LOW) → button is pressed
+
+**Arduino Pins:**
+- OUTPUT mode: Can be set HIGH (5V) or LOW (0V) using digitalWrite()
+- INPUT/INPUT_PULLUP mode: Reads voltage using digitalRead()
+- Pin_13 = Digital pin 13 (code uses "13")
+- Pin_GND = Ground (0V)
+- Pin_5V = Power (5V)
+
+**STEP 2: TRACE CURRENT FLOW**
+
+Before analyzing, trace how current flows:
+1. Find all HIGH pins (digitalWrite(pin, HIGH))
+2. For each HIGH pin, find which breadboard row it connects to
+3. Check if LED anode is in that row (remember: A-E are connected)
+4. Check if LED cathode connects to GND (directly or through breadboard)
+5. If YES to both → LED should glow
+
+Example circuit:
+- Wire: Pin_13 → BB_C3
+- LED: Long leg on BB_D3, Short leg on BB_D1
+- Wire: BB_B1 → Pin_GND
+- Code: digitalWrite(13, HIGH)
+
+Trace:
+1. Pin_13 is HIGH
+2. Pin_13 connects to BB_C3
+3. BB_C3 is in row 3 (A3-E3 connected)
+4. LED long leg on BB_D3 → SAME ROW → Anode is HIGH ✓
+5. LED short leg on BB_D1 → row 1
+6. BB_B1 in row 1 connects to GND → Cathode is LOW ✓
+7. Result: LED GLOWS → shouldGlow: true, connectedToPin: "D13"
+
+**STEP 3: ANALYZE BUTTON INTERACTIONS**
+
+For buttons:
+1. Find button pins in circuit
+2. Check if code uses digitalRead() on any Arduino pin
+3. Trace which breadboard row that Arduino pin connects to
+4. Check if button is in that row
+5. If code has if(digitalRead(pin) == LOW), button press triggers that code
+6. See what happens inside the if statement (usually digitalWrite to another pin)
+7. Set onPress.targetPin to that pin and action to "TOGGLE"
+
+**NOW ANALYZE THE CIRCUIT:**
+
 **Arduino Code:**
 \`\`\`cpp
 ${code}
@@ -33,6 +94,13 @@ ${code}
   "syntaxErrors": [],
   "circuitValid": true,
   "circuitIssues": [],
+  "suggestedConnections": [
+    {
+      "component": "LED",
+      "issue": "Cathode not connected to GND",
+      "suggestion": "Add wire: BB_D1 → Pin_GND"
+    }
+  ],
   "message": "Ready to upload!",
   "simulation": {
     "pins": {
@@ -53,9 +121,16 @@ ${code}
 
 **Instructions:**
 1. Set syntaxValid to false if code has syntax errors, list them in syntaxErrors array
-2. Set circuitValid to false if circuit doesn't match code, list issues in circuitIssues array
+2. Set circuitValid to false if circuit doesn't match code. In circuitIssues array, provide:
+   - What's wrong with current connections
+   - Suggested fix using EXACT pin names (Pin_13, BB_C3, etc.)
+   - Example: "LED cathode should connect to GND. Suggested: Wire from BB_D1 to Pin_GND"
 3. In simulation.pins: list ALL pins used in pinMode() with their mode and initial state
-4. In simulation.components.LED: for each LED in circuit, check if its connected pin has digitalWrite(pin, HIGH). If yes, set shouldGlow: true
+4. In simulation.components.LED: for each LED in circuit:
+   - Find which breadboard row the LED is on (e.g., BB_D3 is in row 3)
+   - Check which Arduino pin connects to ANY pin in that same row (A-E are connected)
+   - If that Arduino pin has digitalWrite(pin, HIGH), set shouldGlow: true and connectedToPin to that Arduino pin number (e.g., "D13")
+   - Example: LED on BB_D3, Pin_13 wired to BB_C3 → both in row 3 → LED should glow if digitalWrite(13, HIGH)
 5. In simulation.components.BUTTON: for each button, if code uses digitalRead() on its pin, add button config with onPress action
 6. If button press should toggle an LED (like in if statements), set onPress.action to "TOGGLE" and onPress.targetPin to the LED pin
 
@@ -69,6 +144,18 @@ Then button config should be:
     "action": "TOGGLE"
   }
 }
+  
+**STEP 4: PROVIDE HELPFUL SUGGESTIONS**
+
+If circuitValid is false, in suggestedConnections array provide:
+- component: Which component has the issue (LED, BUTTON, etc.)
+- issue: What's wrong
+- suggestion: Exact wire to add using real pin names from the circuit
+  Example: "Add wire: BB_D1 → Pin_GND" or "Move wire from BB_C5 to BB_C3"
+
+Use ONLY these pin naming formats:
+- Arduino: Pin_13, Pin_GND, Pin_5V, Pin_D2, etc.
+- Breadboard: BB_A1, BB_B5, BB_C3, VCC001, GND_1, etc.
 
 RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT.`;
 }
