@@ -21,6 +21,19 @@ function buildVerificationPrompt(code, circuit) {
 Components: ${JSON.stringify(circuit.components, null, 2)}
 Wires: ${JSON.stringify(circuit.wires, null, 2)}
 
+**CRITICAL BREADBOARD KNOWLEDGE:**
+Breadboard pins are electrically connected in rows:
+- Pins BB_A1, BB_B1, BB_C1, BB_D1, BB_E1 are ALL connected (same row)
+- Pins BB_F1, BB_G1, BB_H1, BB_I1, BB_J1 are ALL connected (same row)
+- Power rails: All VCC pins are connected, all GND pins are connected
+- Example: If Pin_13 connects to BB_C3, and LED is on BB_D3, they ARE electrically connected (same row)
+
+**To find which Arduino pin powers an LED:**
+1. Find which breadboard pin the LED is connected to (e.g., BB_D3)
+2. Check which other pins in that row have wires (BB_A3, BB_B3, BB_C3, BB_D3, BB_E3)
+3. Follow the wire from that row pin back to the Arduino pin
+4. Example: LED on BB_D3 → same row as BB_C3 → wire from Pin_13 to BB_C3 → LED is powered by Pin_13
+
 **Arduino Code:**
 \`\`\`cpp
 ${code}
@@ -55,7 +68,11 @@ ${code}
 1. Set syntaxValid to false if code has syntax errors, list them in syntaxErrors array
 2. Set circuitValid to false if circuit doesn't match code, list issues in circuitIssues array
 3. In simulation.pins: list ALL pins used in pinMode() with their mode and initial state
-4. In simulation.components.LED: for each LED in circuit, check if its connected pin has digitalWrite(pin, HIGH). If yes, set shouldGlow: true
+4. In simulation.components.LED: for each LED in circuit:
+   - Find which breadboard row the LED is on (e.g., BB_D3 is in row 3)
+   - Check which Arduino pin connects to ANY pin in that same row (A-E are connected)
+   - If that Arduino pin has digitalWrite(pin, HIGH), set shouldGlow: true and connectedToPin to that Arduino pin number (e.g., "D13")
+   - Example: LED on BB_D3, Pin_13 wired to BB_C3 → both in row 3 → LED should glow if digitalWrite(13, HIGH)
 5. In simulation.components.BUTTON: for each button, if code uses digitalRead() on its pin, add button config with onPress action
 6. If button press should toggle an LED (like in if statements), set onPress.action to "TOGGLE" and onPress.targetPin to the LED pin
 
