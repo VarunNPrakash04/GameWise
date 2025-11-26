@@ -6,6 +6,7 @@ import { initShuffle } from './Shuffle.js';
 import { colorDropdown } from './colorDropdown.js';
 import { initMenuBar, setProjectName } from './menuBar.js';
 import { showDeleteMenu, hideDeleteMenu } from './componentDeletion.js';
+import { initButtonAnimation } from './buttonAnimation.js';
 import {
     createBreadboardIcon,
     startIconDrag,
@@ -33,8 +34,15 @@ let splashSkipped = false;
 let shuffleInstance = null;
 
 function hideSplash() {
-    if (splashSkipped) return;
+    console.log('🔍 hideSplash() called, splashSkipped =', splashSkipped);
+
+    if (splashSkipped) {
+        console.log('⚠️ Splash already skipped, returning early');
+        return;
+    }
+
     splashSkipped = true;
+    console.log('✅ Setting splashSkipped = true');
 
     // Clear timeout if still running
     if (splashTimeout) {
@@ -50,10 +58,26 @@ function hideSplash() {
 
     // Hide splash screen
     splashScreen.classList.add('hidden');
+    console.log('✅ Splash screen hidden');
 
     // Show main content
     setTimeout(() => {
         mainContent.classList.add('visible');
+        console.log('✅ Main content visible');
+
+        // Trigger all animations after splash is dismissed
+        console.log('🔍 About to import buttonAnimation.js...');
+        import('./buttonAnimation.js').then(module => {
+            console.log('✅ buttonAnimation.js imported successfully');
+            console.log('🔍 Calling triggerAllAnimations()...');
+            module.triggerAllAnimations();
+        }).catch(err => {
+            console.error('❌ Failed to import buttonAnimation.js:', err);
+        });
+
+        // Dispatch custom event for Arduino animation
+        window.dispatchEvent(new Event('splashDismissed'));
+        console.log('✅ splashDismissed event dispatched');
     }, 100);
 }
 
@@ -124,12 +148,14 @@ if (document.readyState === 'loading') {
 
 // Skip on click anywhere
 splashScreen.addEventListener('click', () => {
+    console.log('👆 Splash screen clicked!');
     hideSplash();
 });
 
 // Skip on Enter key
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !splashSkipped) {
+        console.log('⌨️ Enter key pressed!');
         hideSplash();
     }
 });
@@ -331,8 +357,8 @@ function createButtonPlaceholder() {
 
 // SCENE SETUP
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000); // Pure black background
-scene.fog = new THREE.Fog(0x000000, 15, 45); // Dark blue-black fog (Tron Legacy style)
+scene.background = new THREE.Color(0x1a1a1a);
+scene.fog = new THREE.Fog(0x1a1a1a, 15, 60);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(5, 4, 6);
@@ -700,8 +726,21 @@ loader.load('/Arduino.glb', (gltf) => {
         }
     });
 
+    // Set Arduino invisible BEFORE adding to scene
+    arduino.traverse((child) => {
+        if (child.material) {
+            child.material.transparent = true;
+            child.material.opacity = 0; // Start invisible
+        }
+    });
+
+    // Now add to scene (invisible)
     scene.add(arduino);
 
+    // Animate Arduino fade-in (only after splash is dismissed)
+    import('./buttonAnimation.js').then(module => {
+        module.triggerArduinoAnimation(arduino);
+    });
     // Attach invisible helper sphere for every pin and enhance pin visibility
     arduino.traverse((obj) => {
         if (obj.type === "Object3D" && obj.name.startsWith("Pin_")) {
@@ -1177,13 +1216,6 @@ window.addEventListener('pointerdown', (e) => {
 
         if (rootComponent) {
             const obj = rootComponent;
-
-            // Check if component is locked
-            if (obj.userData.isLocked) {
-                console.log('🔒 Component is locked - cannot move');
-                updateComponentStatus(obj);
-                return;
-            }
 
             // Special handling for breadboard
             if (obj.userData.type === "BREADBOARD") {
@@ -2186,10 +2218,15 @@ function highlightNearbyPinsForButton(button) {
     const legs = [];
 
     button.traverse((child) => {
-        if (child.name === 'Button_Pin_1' || child.name === 'Button_Pin_2') {
+        if (child.userData.isPin || (child.name && (
+            child.name.toLowerCase().includes('leg') ||
+            child.name.toLowerCase().includes('pin') ||
+            child.name.toLowerCase().includes('terminal')
+        ))) {
             legs.push(child);
         }
     });
+
     // Fallback: check userData.pins if no legs found via traverse
     if (legs.length === 0 && button.userData.pins) {
         Object.values(button.userData.pins).forEach(pin => {
@@ -2360,17 +2397,22 @@ function snapLEDToNearestPins(led) {
     }
 }
 
-// BUTTON-specific snapping - snaps 2 pins to breadboard pins
+// BUTTON-specific snapping - snaps all 4 legs to breadboard pins
 function snapButtonToNearestPins(button) {
-    // Find the button pins in the model (Button_Pin_1 and Button_Pin_2)
+    // Find the button legs in the model
     const legs = [];
 
     button.traverse((child) => {
-        if (child.name === 'Button_Pin_1' || child.name === 'Button_Pin_2') {
+        if (child.userData.isPin || (child.name && (
+            child.name.toLowerCase().includes('leg') ||
+            child.name.toLowerCase().includes('pin') ||
+            child.name.toLowerCase().includes('terminal')
+        ))) {
             legs.push(child);
-            console.log('Found button pin:', child.name);
+            console.log('Found button leg:', child.name, 'isPin:', child.userData.isPin);
         }
     });
+
     console.log('Total button legs found:', legs.length);
 
     if (legs.length === 0) {
@@ -2523,7 +2565,6 @@ function highlightComponent(component, highlight) {
 function deselectComponent() {
     if (selectedComponent) {
         highlightComponent(selectedComponent, false);
-        hideComponentStatus();
         selectedComponent = null;
     }
 }
@@ -2547,232 +2588,9 @@ function spawnComponent(type) {
         deselectComponent();
         selectedComponent = obj;
         highlightComponent(obj, true);
-        updateComponentStatus(obj);
     }
 }
 
-// ===== BUTTON PRESS ANIMATION =====
-function pressButton(button) {
-    if (!button || button.userData.isPressed) return;
-
-    // Only allow press if button is snapped to breadboard
-    if (!button.userData.snappedPins || button.userData.snappedPins.length < 2) {
-        console.log('⚠️ Button must be snapped to breadboard before it can be pressed');
-        return;
-    }
-
-    // Find the Button_Top mesh
-    let topMesh = null;
-    button.traverse((child) => {
-        if (child.isMesh && child.name === 'Button_Top') {
-            topMesh = child;
-        }
-    });
-
-    if (!topMesh) {
-        console.warn('⚠️ Button_Top mesh not found in button model');
-        return;
-    }
-
-    button.userData.isPressed = true;
-
-    // Store original position if not stored
-    if (!topMesh.userData._origPos) {
-        topMesh.userData._origPos = topMesh.position.clone();
-    }
-
-    // Move top down (press animation)
-    // Increased depth to 0.15 for deeper press (half the button)
-    topMesh.position.z = (topMesh.userData._origPos.z || 0) - 0.15;
-
-    console.log('🔘 Button PRESSED!');
-}
-
-function releaseButton(button) {
-    if (!button || !button.userData.isPressed) return;
-
-    // Find the Button_Top mesh
-    let topMesh = null;
-    button.traverse((child) => {
-        if (child.isMesh && child.name === 'Button_Top') {
-            topMesh = child;
-        }
-    });
-
-    if (!topMesh || !topMesh.userData._origPos) return;
-
-    // Restore original position (spring back up)
-    topMesh.position.copy(topMesh.userData._origPos);
-    button.userData.isPressed = false;
-
-    console.log('🔘 Button RELEASED!');
-}
-
-// Display component status (lock state and pins)
-function updateComponentStatus(component) {
-    if (!component) return;
-
-    // Create or get status display element
-    let statusDiv = document.getElementById('componentStatus');
-    if (!statusDiv) {
-        statusDiv = document.createElement('div');
-        statusDiv.id = 'componentStatus';
-        statusDiv.style.cssText = `
-            position: fixed;
-            top: 120px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            z-index: 1000;
-            min-width: 250px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border: 2px solid ${component.userData.isLocked ? '#4CAF50' : '#FF9800'};
-        `;
-        document.body.appendChild(statusDiv);
-    }
-
-    // Update border color based on lock state
-    statusDiv.style.border = `2px solid ${component.userData.isLocked ? '#4CAF50' : '#FF9800'}`;
-
-    // Build status HTML
-    const lockIcon = component.userData.isLocked ? '🔒' : '🔓';
-    const lockStatus = component.userData.isLocked ? 'LOCKED' : 'UNLOCKED';
-    const lockColor = component.userData.isLocked ? '#4CAF50' : '#FF9800';
-
-    let html = `
-        <div style="margin-bottom: 10px; font-weight: bold; font-size: 14px;">
-            ${component.userData.type} Status
-        </div>
-        <div style="margin-bottom: 8px;">
-            <span style="color: ${lockColor}; font-weight: bold;">${lockIcon} ${lockStatus}</span>
-        </div>
-    `;
-
-    // Show connected pins if available
-    if (component.userData.snappedPins) {
-        if (Array.isArray(component.userData.snappedPins)) {
-            // Button with multiple pins
-            html += `
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;">
-                    <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">Connected Pins:</div>
-                    ${component.userData.snappedPins.map(pin => `<div style="color: #4CAF50;">📍 ${pin}</div>`).join('')}
-                </div>
-            `;
-        } else if (component.userData.snappedPins.long && component.userData.snappedPins.short) {
-            // LED with long/short pins
-            html += `
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;">
-                    <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">Connected Pins:</div>
-                    <div style="color: #4CAF50;">📍 Anode: ${component.userData.snappedPins.long}</div>
-                    <div style="color: #4CAF50;">📍 Cathode: ${component.userData.snappedPins.short}</div>
-                </div>
-            `;
-        }
-    }
-
-    html += `
-        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #444; font-size: 11px; color: #888;">
-            Press <span style="color: #4CAF50; font-weight: bold;">L</span> to lock • 
-            <span style="color: #FF9800; font-weight: bold;">U</span> to unlock
-        </div>
-    `;
-
-    statusDiv.innerHTML = html;
-}
-
-// Hide status display when component is deselected
-function hideComponentStatus() {
-    const statusDiv = document.getElementById('componentStatus');
-    if (statusDiv) {
-        statusDiv.remove();
-    }
-}
-// Track which button is currently pressed
-let pressedButton = null;
-
-// ===== BUTTON PRESS MOUSE HANDLERS =====
-// Track double-click for button movement
-let buttonClickTimer = null;
-let buttonClickCount = 0;
-
-window.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return; // Only left click
-
-    updateMouse(e);
-    raycaster.setFromCamera(mouse, camera);
-
-    const intersects = raycaster.intersectObjects(components, true);
-
-    for (const hit of intersects) {
-        const root = findComponentRoot(hit.object);
-        if (root && root.userData.type === 'BUTTON' && !wireMode) {
-            buttonClickCount++;
-
-            // Clear existing timer
-            if (buttonClickTimer) {
-                clearTimeout(buttonClickTimer);
-            }
-
-            // Single click - do button press animation
-            if (buttonClickCount === 1) {
-                buttonClickTimer = setTimeout(() => {
-                    // This is a single click - do press animation
-                    pressButton(root);
-                    pressedButton = root;
-                    buttonClickCount = 0;
-                }, 250); // 250ms delay to detect double-click
-            }
-            // Double click - allow dragging (do nothing, let normal drag handler work)
-            else if (buttonClickCount === 2) {
-                buttonClickCount = 0;
-                buttonClickTimer = null;
-                // Don't call pressButton - let the component drag normally
-                console.log('🔘 Double-click detected - button can be moved');
-            }
-            break;
-        }
-    }
-});
-
-window.addEventListener('mouseup', (e) => {
-    if (e.button !== 0) return;
-
-    if (pressedButton) {
-        releaseButton(pressedButton);
-        pressedButton = null;
-    }
-});
-
-// ===== LOCK/UNLOCK COMPONENT WITH KEYBOARD =====
-window.addEventListener('keydown', (e) => {
-    // L key to lock selected component
-    if (e.key === 'l' || e.key === 'L') {
-        if (selectedComponent && selectedComponent.userData.type !== 'BREADBOARD') {
-            // Check if component is snapped to breadboard
-            if (selectedComponent.userData.snappedPins &&
-                (Array.isArray(selectedComponent.userData.snappedPins) ? selectedComponent.userData.snappedPins.length >= 2 : true)) {
-                selectedComponent.userData.isLocked = true;
-                console.log('🔒 Component LOCKED at pins:', selectedComponent.userData.snappedPins);
-                updateComponentStatus(selectedComponent);
-            } else {
-                console.warn('⚠️ Component must be snapped to breadboard before locking');
-            }
-        }
-    }
-
-    // U key to unlock selected component
-    if (e.key === 'u' || e.key === 'U') {
-        if (selectedComponent && selectedComponent.userData.isLocked) {
-            selectedComponent.userData.isLocked = false;
-            console.log('🔓 Component UNLOCKED');
-            updateComponentStatus(selectedComponent);
-        }
-    }
-});
 // RESIZE
 window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -3709,7 +3527,8 @@ initMenuBar(
         clearScene();
     }
 );
-
+// Initialize button animation
+//initButtonAnimation();
 
 // ===== MANUAL SNAP FEATURE (A key) =====
 
@@ -3762,12 +3581,20 @@ function openManualSnapModal(component) {
     } else if (type === 'BUTTON') {
         modalInputs.innerHTML = `
             <div class="modal-input-group">
-                <label>Pin 1 (Button_Pin_1):</label>
-                <input type="text" id="input_pin1" placeholder="e.g., A1, B5" />
+                <label>Leg 1 Pin:</label>
+                <input type="text" id="input_leg1" placeholder="e.g., A1" />
             </div>
             <div class="modal-input-group">
-                <label>Pin 2 (Button_Pin_2):</label>
-                <input type="text" id="input_pin2" placeholder="e.g., A3, B7" />
+                <label>Leg 2 Pin:</label>
+                <input type="text" id="input_leg2" placeholder="e.g., A3" />
+            </div>
+            <div class="modal-input-group">
+                <label>Leg 3 Pin:</label>
+                <input type="text" id="input_leg3" placeholder="e.g., D1" />
+            </div>
+            <div class="modal-input-group">
+                <label>Leg 4 Pin:</label>
+                <input type="text" id="input_leg4" placeholder="e.g., D3" />
             </div>
         `;
     }

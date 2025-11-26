@@ -4,6 +4,7 @@
 let deleteButton = null;
 let currentTarget = null;
 let currentType = null;
+let hideOnClickListener = null; // Store listener reference
 
 // Create the delete button (reusable for all component types)
 export function ensureDeleteButton() {
@@ -36,7 +37,6 @@ export function ensureDeleteButton() {
     return btn;
 }
 
-// Show delete button at mouse position
 // Show delete button at mouse position
 export function showDeleteMenu(event, target, type, deleteCallback) {
     const btn = ensureDeleteButton();
@@ -77,6 +77,31 @@ export function showDeleteMenu(event, target, type, deleteCallback) {
     // Prevent native context menu
     event.preventDefault();
     event.stopPropagation();
+
+    // Remove old click listeners if they exist
+    if (hideOnClickListener) {
+        document.removeEventListener('click', hideOnClickListener);
+        document.removeEventListener('contextmenu', hideOnClickListener);
+    }
+
+    // Create new listener function
+    hideOnClickListener = (e) => {
+        // Don't hide if clicking the delete button itself
+        if (e.target === newBtn || newBtn.contains(e.target)) {
+            return;
+        }
+
+        hideDeleteMenu();
+    };
+
+    // Add listeners with a small delay to prevent immediate hiding
+    setTimeout(() => {
+        // Hide on left-click anywhere
+        document.addEventListener('click', hideOnClickListener);
+
+        // Hide on right-click anywhere (second right-click)
+        document.addEventListener('contextmenu', hideOnClickListener);
+    }, 100);
 }
 
 // Hide the delete button
@@ -86,4 +111,11 @@ export function hideDeleteMenu() {
     }
     currentTarget = null;
     currentType = null;
+
+    // Remove event listeners
+    if (hideOnClickListener) {
+        document.removeEventListener('click', hideOnClickListener);
+        document.removeEventListener('contextmenu', hideOnClickListener);
+        hideOnClickListener = null;
+    }
 }
