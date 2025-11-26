@@ -356,7 +356,45 @@ function createButtonPlaceholder() {
     return group;
 
 }
+function createBuzzerPlaceholder() {
+    const buzzer = new THREE.Group();
+    buzzer.userData.type = "BUZZER";
+    buzzer.userData.isComponent = true;
 
+    const buzzerLoader = new GLTFLoader();
+    buzzerLoader.load('/Buzzer.glb', (gltf) => {
+        const buzzerModel = gltf.scene;
+
+        // Scale appropriately
+        buzzerModel.scale.set(0.15, 0.15, 0.15);
+
+        // Apply material settings
+        buzzerModel.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material) {
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                child.material = materials.map((mat) => {
+                    if (mat.isMeshStandardMaterial) {
+                        mat.roughness = 0.4;
+                        mat.metalness = 0.3;
+                        mat.envMapIntensity = 1.0;
+                        mat.needsUpdate = true;
+                    }
+                    return mat;
+                });
+                if (child.material.length === 1) {
+                    child.material = child.material[0];
+                }
+            }
+        });
+
+        buzzer.add(buzzerModel);
+        console.log("Buzzer model loaded");
+    }, undefined, (error) => {
+        console.error("Error loading Buzzer model:", error);
+    });
+
+    return buzzer;
+}
 // SCENE SETUP
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a1a);
@@ -706,8 +744,11 @@ window.addEventListener('pointerup', () => {
 // TOGGLE WIRE MODE
 addWireBtn.addEventListener("click", () => {
     wireMode = !wireMode;
-    addWireBtn.style.background = wireMode ? "#0066ff" : "#333";
-    addWireBtn.textContent = wireMode ? "Wire Mode: ON" : "Add Wire";
+    //addWireBtn.style.background = wireMode ? "#0066ff" : "#333";
+    const wireBtnSpan = addWireBtn.querySelector('span');
+    if (wireBtnSpan) {
+        wireBtnSpan.textContent = wireMode ? "Wire Mode: ON" : "Wire";
+    }
     firstPin = null;
     console.log(wireMode)
     // Show/hide color dropdown based on wire mode
@@ -1903,6 +1944,16 @@ function drawWire(pin1, pin2, customColor = null) {
     });
 
     console.log("CONNECTION MAP:", wireConnections);
+    logConnection(
+        `🔌 Wire connected: <span class="pin-info">${pin1.name}</span> → <span class="pin-info">${pin2.name}</span>`,
+        'wire'
+    );
+
+    // Log wire connection
+    logConnection(
+        `🔌 Wire connected: <span class="pin-info">${pin1.name}</span> → <span class="pin-info">${pin2.name}</span>`,
+        'wire'
+    );
 
     // Ensure breadboard pin outlines reflect this new connection
     refreshPinHighlight(pin1);
@@ -2032,6 +2083,8 @@ window.addEventListener('keydown', (e) => {
 
         // Delete selected component
         if (selectedComponent) {
+            const compType = selectedComponent.userData.type;
+            logConnection(`🗑️ <span class="component-name">${compType}</span> component deleted`, 'delete');
             // If deleting a breadboard, remove its rotation icon and clear global ref
             if (selectedComponent.userData.type === "BREADBOARD") {
                 try {
@@ -2507,6 +2560,12 @@ function snapLEDToNearestPins(led) {
         }
 
         console.log(`LED snapped: Long leg → ${nearestLongPin.name}, Short leg → ${nearestShortPin.name}`);
+
+        // Log LED snapping
+        logConnection(
+            `📍 <span class="component-name">LED</span> snapped: Anode (long leg) → <span class="pin-info">${nearestLongPin.name}</span>, Cathode (short leg) → <span class="pin-info">${nearestShortPin.name}</span>`,
+            'snap'
+        );
     } else {
         console.log("LED not close enough to breadboard pins for snapping");
     }
@@ -2603,6 +2662,12 @@ function snapButtonToNearestPins(button) {
         });
 
         console.log(`Button snapped to ${snappedPins.length} pins:`, button.userData.snappedPins);
+        // Log button snapping
+        const pinNames = snappedPins.map(({ pin }) => `<span class="pin-info">${pin.name}</span>`).join(', ');
+        logConnection(
+            `📍 <span class="component-name">BUTTON</span> snapped to pins: ${pinNames}`,
+            'snap'
+        );
     } else {
         console.log("Button not close enough to breadboard pins for snapping");
     }
@@ -2684,9 +2749,18 @@ function deselectComponent() {
 function spawnComponent(type) {
     let obj;
 
-    if (type === "LED") obj = createLEDPlaceholder();
-    if (type === "RESISTOR") obj = createResistorPlaceholder();
-    if (type === "BUTTON") obj = createButtonPlaceholder();
+    if (type === "LED") {
+        obj = createLEDPlaceholder();
+        logConnection(`✨ <span class="component-name">LED</span> component added`, 'component');
+    }
+    if (type === "RESISTOR") {
+        obj = createResistorPlaceholder();
+        logConnection(`✨ <span class="component-name">RESISTOR</span> component added`, 'component');
+    }
+    if (type === "BUTTON") {
+        obj = createButtonPlaceholder();
+        logConnection(`✨ <span class="component-name">BUTTON</span> component added`, 'component');
+    }
     if (type === "BREADBOARD") {
         spawnBreadboard();
         return;
@@ -2695,7 +2769,6 @@ function spawnComponent(type) {
     if (obj) {
         scene.add(obj);
         components.push(obj);
-        // Auto-select newly spawned component
         deselectComponent();
         selectedComponent = obj;
         highlightComponent(obj, true);
@@ -2886,6 +2959,7 @@ function spawnBreadboard() {
             loadingOverlay.classList.add("hidden");
             // Show move button
             moveBoardBtn.style.display = "block";
+            logConnection(`✨ <span class="component-name">BREADBOARD</span> component added`, 'component');
             console.log("Breadboard spawned");
         });
     }, 1000);
@@ -3215,6 +3289,10 @@ function deleteSelectedWire() {
     } else {
         scene.remove(selectedWire);
     }
+    logConnection(
+        `🗑️ Wire deleted: <span class="pin-info">${fromPinObj.name}</span> ↔ <span class="pin-info">${toPinObj.name}</span>`,
+        'delete'
+    );
 
     // Clear selection
     selectedWire = null;
@@ -3747,6 +3825,58 @@ initMenuBar(
 //initButtonAnimation();
 
 // ===== MANUAL SNAP FEATURE (A key) =====
+// ... rest of your existing code ...
+
+// ===== CONNECTION INFO CONSOLE =====
+
+const connectionConsole = document.getElementById('connectionInfoConsole');
+const connectionToggleBtn = document.getElementById('connectionToggleBtn');
+const connectionLog = document.getElementById('connectionLog');
+
+let isConnectionConsoleOpen = false;
+
+// Toggle console
+connectionToggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    isConnectionConsoleOpen = !isConnectionConsoleOpen;
+    connectionConsole.classList.toggle('open', isConnectionConsoleOpen);
+});
+
+// Also toggle when clicking header
+document.querySelector('.connection-header').addEventListener('click', () => {
+    isConnectionConsoleOpen = !isConnectionConsoleOpen;
+    connectionConsole.classList.toggle('open', isConnectionConsoleOpen);
+});
+
+// Log connection info
+function logConnection(message, type = 'info') {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = document.createElement('div');
+    entry.className = `connection-log-entry ${type}`;
+    entry.innerHTML = `
+        <span class="timestamp">[${timestamp}]</span>
+        <span class="message">${message}</span>
+    `;
+    connectionLog.appendChild(entry);
+
+    // Auto-scroll to bottom
+    connectionLog.scrollTop = connectionLog.scrollHeight;
+
+    // Limit log entries to 100
+    while (connectionLog.children.length > 100) {
+        connectionLog.removeChild(connectionLog.firstChild);
+    }
+}
+
+// Clear log function (optional)
+function clearConnectionLog() {
+    connectionLog.innerHTML = '';
+    logConnection('Connection log cleared', 'info');
+}
+
+// Export for use in other parts of the code
+window.logConnection = logConnection;
+window.clearConnectionLog = clearConnectionLog;
 
 const manualSnapModal = document.getElementById('manualSnapModal');
 const modalTitle = document.getElementById('modalTitle');

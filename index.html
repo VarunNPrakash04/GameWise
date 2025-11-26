@@ -10,10 +10,136 @@
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/arduinoIDE.css">
   <link rel="stylesheet" href="/src/colorDropdown.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
   <style>
     body {
       margin: 0;
       overflow: hidden;
+    }
+
+    /* Component icon styling */
+    .component-icon {
+      width: 70px;
+      /* Increased from 48px */
+      height: 60px;
+      object-fit: contain;
+      margin-bottom: 10px;
+      /* Increased from 6px */
+      filter: brightness(0.9);
+      transition: filter 0.2s ease;
+    }
+
+    #components-menu .spawn {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center !important;
+      justify-content: center !important;
+      width: auto;
+      min-width: 100px;
+      /* Increased from 100px */
+      margin: 0 6px !important;
+      /* Add horizontal spacing between buttons */
+      padding: 20px 20px;
+      /* Increased padding */
+      background: transparent !important;
+      color: #e8eefc;
+      border: none;
+      border-radius: 12px;
+      /* Slightly more rounded */
+      cursor: pointer;
+      text-align: center;
+      font-weight: 600;
+      font-size: 13px;
+      /* Add explicit font size */
+      letter-spacing: 0.3px;
+      /* Increased letter spacing */
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+      transform-origin: center;
+      opacity: 0;
+      transform: translateX(-8px) scale(0.98);
+    }
+
+    #components-menu .spawn span {
+      margin-top: 4px;
+      /* Add spacing between icon and text */
+      white-space: nowrap;
+      /* Prevent text wrapping */
+    }
+
+    #components-menu .spawn:hover .component-icon {
+      filter: brightness(1.1);
+    }
+
+    /* Force center alignment for icon */
+    #components-menu .spawn .component-icon {
+      display: block;
+      margin-left: auto !important;
+      margin-right: auto !important;
+    }
+
+    /* Apply Orbitron to all buttons */
+    button,
+    .spawn,
+    #components-toggle,
+    #moveBoardBtn,
+    #ide-toggle-btn,
+    .color-dropdown-toggle,
+    .modal-btn {
+      font-family: 'Orbitron', sans-serif !important;
+      font-weight: 600;
+    }
+
+    /* Force center alignment for text */
+    #components-menu .spawn span {
+      display: block;
+      text-align: center !important;
+      width: 100%;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+    }
+
+    #moveBoardBtn {
+      position: fixed;
+      left: 0;
+      top: 200px;
+      background: #67bbfb !important;
+      /* Always blue */
+      color: #ffffff;
+      border: none;
+      padding: 8px 6px;
+      /* Reduced padding for longer text */
+      width: 40px;
+      height: 180px;
+      /* Increased height for "Move Breadboard" */
+      cursor: pointer;
+      z-index: 999;
+      transition: all 0.3s;
+      font-size: 12px;
+      /* Smaller font for longer text */
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      /* Reduced letter spacing */
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      writing-mode: vertical-lr;
+      text-orientation: mixed;
+      border-radius: 0 12px 12px 0;
+      box-shadow: 3px 0 10px rgba(19, 85, 226, 0.3);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      word-break: keep-all;
+      /* Prevent word breaking */
+    }
+
+    #moveBoardBtn:hover {
+      background: #67bbfb;
+      /* Stay blue on hover */
+      transform: translateX(5px);
+      box-shadow: 5px 0 15px rgba(19, 85, 226, 0.5);
     }
 
     /* Splash Screen */
@@ -488,17 +614,23 @@
       position: absolute;
       top: -10px;
       left: 0;
-      padding-left: 12px;
-      /* Add internal padding instead of offset */
+      padding-left: 16px;
+      /* Increased from 12px */
+      padding-right: 16px;
+      /* Add right padding */
+      padding-top: 12px;
+      /* Add top padding */
+      padding-bottom: 12px;
+      /* Add bottom padding */
       display: none;
       flex-direction: row;
-      /* Changed from column to row */
-      gap: 10px;
+      gap: 12px;
+      /* Add gap between items */
       padding: 12px;
-      background: linear-gradient(135deg, rgba(30, 30, 30, 0.95), rgba(42, 42, 42, 0.92));
-      backdrop-filter: blur(16px);
-      border-radius: 12px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      background: transparent;
+
+      border-radius: transparent;
+      box-shadow: none;
       z-index: 10001;
       transform-origin: top left;
       /* Changed from top center to top left */
@@ -542,40 +674,19 @@
       transform: scale(1);
     }
 
-    /* Animated list items - ALL .spawn buttons get the same styling */
-    #components-menu .spawn {
-      display: inline-block;
-      /* Changed from block */
-      width: auto;
-      /* Changed from 100% */
-      min-width: 120px;
-      /* Add minimum width */
-      margin: 0;
-      padding: 10px 16px;
-      /* Slightly more horizontal padding */
-      background: linear-gradient(90deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-      color: #e8eefc;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      text-align: center;
-      /* Changed from left to center */
-      font-weight: 600;
-      letter-spacing: 0.2px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.02);
-      transform-origin: center;
-      /* Changed from left center */
-      opacity: 0;
-      transform: translateX(-8px) scale(0.98);
-      /* Changed from translateY to translateX */
-    }
-
     /* Hover state for all .spawn buttons */
     #components-menu .spawn:hover {
       background: linear-gradient(90deg, rgba(100, 120, 255, 0.12), rgba(50, 60, 220, 0.08));
       box-shadow: 0 8px 28px rgba(80, 100, 255, 0.12);
       transform: translateY(-2px) scale(1.02);
       color: #fff;
+    }
+
+    /* Remove background from wire-control container */
+    .wire-control {
+      background: transparent !important;
+      padding: 0 !important;
+      display: contents !important;
     }
 
     /* smoother transition-based animation (GPU-friendly) */
@@ -995,6 +1106,153 @@
       opacity: 1;
       transform: translateY(0) scale(1);
     }
+
+    /* Connection Info Console */
+    .connection-console {
+      position: fixed;
+      bottom: 0;
+      right: 20px;
+      width: 400px;
+      height: 50px;
+      background: rgba(30, 30, 30, 0.95);
+      border: 1px solid #444;
+      border-radius: 8px 8px 0 0;
+      z-index: 9999;
+      transition: height 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .connection-console.open {
+      height: 400px;
+    }
+
+    .connection-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: #1a1a1a;
+      border-bottom: 1px solid #444;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 8px 8px 0 0;
+    }
+
+    .connection-header span {
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .connection-toggle-btn {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: transform 0.3s ease;
+    }
+
+    .connection-console.open .connection-toggle-btn {
+      transform: rotate(180deg);
+    }
+
+    .connection-content {
+      flex: 1;
+      overflow: hidden;
+      display: none;
+    }
+
+    .connection-console.open .connection-content {
+      display: block;
+    }
+
+    .connection-log {
+      height: 100%;
+      overflow-y: auto;
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #e0e0e0;
+    }
+
+    .connection-log-entry {
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      border-left: 3px solid #666;
+      background: rgba(50, 50, 50, 0.5);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .connection-log-entry.wire {
+      border-left-color: #2196F3;
+    }
+
+    .connection-log-entry.component {
+      border-left-color: #4CAF50;
+    }
+
+    .connection-log-entry.snap {
+      border-left-color: #FF9800;
+    }
+
+    .connection-log-entry.delete {
+      border-left-color: #F44336;
+    }
+
+    .connection-log-entry .timestamp {
+      color: #888;
+      font-size: 10px;
+      margin-right: 8px;
+    }
+
+    .connection-log-entry .message {
+      color: #e0e0e0;
+    }
+
+    .connection-log-entry .pin-info {
+      color: #64B5F6;
+      font-weight: bold;
+    }
+
+    .connection-log-entry .component-name {
+      color: #81C784;
+      font-weight: bold;
+    }
+
+    /* Scrollbar styling */
+    .connection-log::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .connection-log::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+
+    .connection-log::-webkit-scrollbar-thumb {
+      background: #444;
+      border-radius: 4px;
+    }
+
+    .connection-log::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
   </style>
   <link rel="stylesheet" href="/src/Shuffle.css">
 </head>
@@ -1186,7 +1444,6 @@
         <button id="components-toggle">Components</button>
         <div id="components-menu" aria-hidden="true">
           <div class="wire-control" id="wireControl">
-            <button id="addWireBtn" class="spawn">Add Wire</button>
             <!-- Hidden select for backward compatibility with main.js -->
             <select id="wireColorPicker" style="display: none;">
               <option value="0xff0000">Red</option>
@@ -1199,301 +1456,319 @@
               <option value="0x000000">Black</option>
             </select>
             <!-- Custom animated color picker dropdown -->
+            <button class="spawn" id="addWireBtn">
+              <img src="/icons/wire.png" alt="Wire" class="component-icon">
+              <span>Wire</span>
+            </button>
+            <button class="spawn" data-type="LED">
+              <img src="/icons/led.png" alt="LED" class="component-icon">
+              <span>LED</span>
+            </button>
+            <button class="spawn" data-type="BREADBOARD">
+              <img src="/icons/breadboard.png" alt="Breadboard" class="component-icon">
+              <span>Breadboard</span>
+            </button>
+            <button class="spawn" data-type="BUTTON">
+              <img src="/icons/button.png" alt="Button" class="component-icon">
+              <span>Button</span>
+            </button>
+            <button class="spawn" data-type="RESISTOR">
+              <img src="/icons/resistor.png" alt="Resistor" class="component-icon">
+              <span>Resistor</span>
+            </button>
+            <button class="spawn" data-type="BUZZER">
+              <img src="/icons/buzzer.png" alt="Buzzer" class="component-icon">
+              <span>Buzzer</span>
+            </button>
+
 
           </div>
-          <button class="spawn" data-type="LED">Add LED</button>
-          <button class="spawn" data-type="RESISTOR">Add Resistor</button>
-          <button class="spawn" data-type="BREADBOARD">Add Breadboard</button>
-          <button class="spawn" data-type="BUTTON">Add Button</button>
+        </div>
+        <!-- Move Board button is outside the Components menu so it can appear next to the Components toggle -->
+        <button id="moveBoardBtn">Move Breadboard</button>
 
-          <!-- Demo component buttons for animation showcase (dummies) -->
-          <button class="spawn" data-type="DEMO">Add Component 1</button>
-          <button class="spawn" data-type="DEMO">Add Component 2</button>
-          <button class="spawn" data-type="DEMO">Add Component 3</button>
-          <button class="spawn" data-type="DEMO">Add Component 4</button>
-          <button class="spawn" data-type="DEMO">Add Component 5</button>
-          <button class="spawn" data-type="DEMO">Add Component 6</button>
-          <button class="spawn" data-type="DEMO">Add Component 7</button>
-          <button class="spawn" data-type="DEMO">Add Component 8</button>
-          <button class="spawn" data-type="DEMO">Add Component 9</button>
-          <button class="spawn" data-type="DEMO">Add Component 10</button>
+        <div id="pinLabel"></div>
+
+      </div>
+
+      <div id="loadingOverlay" class="hidden">Adding Breadboard...</div>
+      <button id="ide-toggle-btn">CODE</button>
+      <!-- Manual Snap Modal -->
+      <div id="manualSnapModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+          <h2 id="modalTitle">Snap Component to Pins</h2>
+          <p id="modalSubtitle">Enter breadboard pin names (e.g., A1, B5, GND1, VCC2)</p>
+
+          <div id="modalInputs"></div>
+
+          <div class="modal-buttons">
+            <button id="modalSnapBtn" class="modal-btn modal-btn-primary">Snap</button>
+            <button id="modalCancelBtn" class="modal-btn modal-btn-secondary">Cancel</button>
+          </div>
+
+          <div id="modalError" class="modal-error" style="display: none;"></div>
         </div>
       </div>
-      <!-- Move Board button is outside the Components menu so it can appear next to the Components toggle -->
-      <button id="moveBoardBtn" style="display:none; margin-left:8px;">Move Board</button>
-    </div>
 
-    <div id="pinLabel"></div>
+      <script type="module" src="/src/main.js"></script>
+      <script>
+        // Components menu toggle: keep UI behavior minimal and independent from main.js
+        (function () {
+          const toggle = document.getElementById('components-toggle');
+          const menu = document.getElementById('components-menu');
+          if (!toggle || !menu) return;
 
-  </div>
+          // smoother IntersectionObserver-driven animation: set inline transform/opacity + per-item delay
+          const animationDuration = 420;
+          // include the color select (styled as .spawn) so it participates in the same animated list behavior
+          const itemsSelector = '.wire-control, .spawn, select.spawn';
+          const items = () => Array.from(menu.querySelectorAll(itemsSelector));
 
-  <div id="loadingOverlay" class="hidden">Adding Breadboard...</div>
-  <button id="ide-toggle-btn">CODE</button>
-  <!-- Manual Snap Modal -->
-  <div id="manualSnapModal" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
-      <h2 id="modalTitle">Snap Component to Pins</h2>
-      <p id="modalSubtitle">Enter breadboard pin names (e.g., A1, B5, GND1, VCC2)</p>
-
-      <div id="modalInputs"></div>
-
-      <div class="modal-buttons">
-        <button id="modalSnapBtn" class="modal-btn modal-btn-primary">Snap</button>
-        <button id="modalCancelBtn" class="modal-btn modal-btn-secondary">Cancel</button>
-      </div>
-
-      <div id="modalError" class="modal-error" style="display: none;"></div>
-    </div>
-  </div>
-
-  <script type="module" src="/src/main.js"></script>
-  <script>
-    // Components menu toggle: keep UI behavior minimal and independent from main.js
-    (function () {
-      const toggle = document.getElementById('components-toggle');
-      const menu = document.getElementById('components-menu');
-      if (!toggle || !menu) return;
-
-      // smoother IntersectionObserver-driven animation: set inline transform/opacity + per-item delay
-      const animationDuration = 420;
-      // include the color select (styled as .spawn) so it participates in the same animated list behavior
-      const itemsSelector = '.wire-control, .spawn, select.spawn';
-      const items = () => Array.from(menu.querySelectorAll(itemsSelector));
-
-      // apply visible state (transform -> none, opacity -> 1) with optional delay
-      function showElement(el, delayMs = 0) {
-        // ensure element uses anim-item baseline
-        el.classList.add('anim-item');
-        // set delay and then apply visible state on next frame
-        el.style.transitionDelay = `${delayMs}ms`;
-        requestAnimationFrame(() => {
-          el.style.opacity = '1';
-          el.style.transform = 'translateY(0px) scale(1)';
-        });
-        // clear the delay after animation completes
-        setTimeout(() => {
-          el.style.transitionDelay = '';
-        }, animationDuration + (delayMs || 0) + 30);
-      }
-
-      function hideElement(el) {
-        // hide with no delay so it can re-animate later
-        el.style.transitionDelay = '';
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(10px) scale(0.98)';
-      }
-
-      // IntersectionObserver: when item enters menu viewport while menu is visible, trigger showElement;
-      // when leaves, call hideElement so it can animate again on re-entry.
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          const el = entry.target;
-          const idx = parseInt(el.dataset.idx || 0);
-          if (entry.isIntersecting && menu.classList.contains('visible')) {
-            showElement(el, idx * 60);
-          } else {
-            hideElement(el);
+          // apply visible state (transform -> none, opacity -> 1) with optional delay
+          function showElement(el, delayMs = 0) {
+            // ensure element uses anim-item baseline
+            el.classList.add('anim-item');
+            // set delay and then apply visible state on next frame
+            el.style.transitionDelay = `${delayMs}ms`;
+            requestAnimationFrame(() => {
+              el.style.opacity = '1';
+              el.style.transform = 'translateY(0px) scale(1)';
+            });
+            // clear the delay after animation completes
+            setTimeout(() => {
+              el.style.transitionDelay = '';
+            }, animationDuration + (delayMs || 0) + 30);
           }
-        });
-      }, { root: menu, threshold: 0.12 });
 
-      toggle.addEventListener('click', (e) => {
-        e.stopPropagation();
-
-        // Hide the Components button
-        toggle.style.display = 'none';
-
-        // Show the menu
-        menu.classList.remove('closing');
-        menu.classList.add('visible');
-
-        // Apply staggered animation delays to visible items
-        const list = items();
-        const menuRect = menu.getBoundingClientRect();
-        list.forEach((el, i) => {
-          el.dataset.idx = i;
-          hideElement(el);
-          const rect = el.getBoundingClientRect();
-          const inView = !(rect.bottom < menuRect.top || rect.top > menuRect.bottom);
-          if (inView) {
-            showElement(el, i * 60);
-          } else {
-            io.observe(el);
+          function hideElement(el) {
+            // hide with no delay so it can re-animate later
+            el.style.transitionDelay = '';
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(10px) scale(0.98)';
           }
-        });
 
-        menu.setAttribute('aria-hidden', 'false');
-      });
+          // IntersectionObserver: when item enters menu viewport while menu is visible, trigger showElement;
+          // when leaves, call hideElement so it can animate again on re-entry.
+          const io = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              const el = entry.target;
+              const idx = parseInt(el.dataset.idx || 0);
+              if (entry.isIntersecting && menu.classList.contains('visible')) {
+                showElement(el, idx * 60);
+              } else {
+                hideElement(el);
+              }
+            });
+          }, { root: menu, threshold: 0.12 });
 
-      // Add click handlers to all spawn buttons to hide menu and show button again
-      document.querySelectorAll('#components-menu .spawn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          // Hide the menu
-          menu.classList.remove('visible');
-          menu.classList.add('closing');
-          const list = items();
-          list.forEach((el) => {
-            hideElement(el);
-            try { io.unobserve(el); } catch (e) { }
+          toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            // Hide the Components button
+            toggle.style.display = 'none';
+
+            // Show the menu
+            menu.classList.remove('closing');
+            menu.classList.add('visible');
+
+            // Apply staggered animation delays to visible items
+            const list = items();
+            const menuRect = menu.getBoundingClientRect();
+            list.forEach((el, i) => {
+              el.dataset.idx = i;
+              hideElement(el);
+              const rect = el.getBoundingClientRect();
+              const inView = !(rect.bottom < menuRect.top || rect.top > menuRect.bottom);
+              if (inView) {
+                showElement(el, i * 60);
+              } else {
+                io.observe(el);
+              }
+            });
+
+            menu.setAttribute('aria-hidden', 'false');
           });
 
-          // Show the Components button again after animation
-          setTimeout(() => {
-            menu.classList.remove('closing');
-            toggle.style.opacity = '0';
-            toggle.style.display = 'flex';
-            setTimeout(() => {
-              toggle.style.opacity = '1';
-            }, 10);
-          }, 300);
+          // Add click handlers to all spawn buttons to hide menu and show button again
+          document.querySelectorAll('#components-menu .spawn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              // Hide the menu
+              menu.classList.remove('visible');
+              menu.classList.add('closing');
+              const list = items();
+              list.forEach((el) => {
+                hideElement(el);
+                try { io.unobserve(el); } catch (e) { }
+              });
 
-          menu.setAttribute('aria-hidden', 'true');
-        });
-      });
+              // Show the Components button again after animation
+              setTimeout(() => {
+                menu.classList.remove('closing');
+                toggle.style.opacity = '0';
+                toggle.style.display = 'flex';
+                setTimeout(() => {
+                  toggle.style.opacity = '1';
+                }, 10);
+              }, 300);
 
-      // Prevent clicks inside the menu from closing it
-      menu.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-      // Close menu and show button on right-click anywhere
-      document.addEventListener('click', (e) => {
-        if (menu.classList.contains('visible')) {
-          e.preventDefault(); // Prevent context menu from showing
-
-          // Hide the menu
-          menu.classList.remove('visible');
-          menu.classList.add('closing');
-          const list = items();
-          list.forEach((el) => {
-            hideElement(el);
-            try { io.unobserve(el); } catch (e) { }
+              menu.setAttribute('aria-hidden', 'true');
+            });
           });
 
-          // Show the Components button again after animation
-          setTimeout(() => {
-            menu.classList.remove('closing');
-            toggle.style.opacity = '0';
-            toggle.style.display = 'flex';
-            setTimeout(() => {
-              toggle.style.opacity = '1';
-            }, 10);
-          }, 300);
+          // Prevent clicks inside the menu from closing it
+          menu.addEventListener('click', (e) => {
+            e.stopPropagation();
+          });
+          // Close menu and show button on right-click anywhere
+          document.addEventListener('click', (e) => {
+            if (menu.classList.contains('visible')) {
+              e.preventDefault(); // Prevent context menu from showing
 
-          menu.setAttribute('aria-hidden', 'true');
-        }
-      });
-      // Color picker dropdown animation (same as components menu)
-      const colorToggle = document.getElementById('colorPickerToggle');
-      const colorMenu = document.getElementById('colorPickerMenu');
+              // Hide the menu
+              menu.classList.remove('visible');
+              menu.classList.add('closing');
+              const list = items();
+              list.forEach((el) => {
+                hideElement(el);
+                try { io.unobserve(el); } catch (e) { }
+              });
 
-      if (colorToggle && colorMenu) {
-        const colorOptions = Array.from(colorMenu.querySelectorAll('.color-option'));
+              // Show the Components button again after animation
+              setTimeout(() => {
+                menu.classList.remove('closing');
+                toggle.style.opacity = '0';
+                toggle.style.display = 'flex';
+                setTimeout(() => {
+                  toggle.style.opacity = '1';
+                }, 10);
+              }, 300);
 
-        colorToggle.addEventListener('click', (e) => {
-          e.stopPropagation();
+              menu.setAttribute('aria-hidden', 'true');
+            }
+          });
+          // Color picker dropdown animation (same as components menu)
+          const colorToggle = document.getElementById('colorPickerToggle');
+          const colorMenu = document.getElementById('colorPickerMenu');
 
-          if (!colorMenu.classList.contains('visible')) {
-            // Opening
-            colorMenu.classList.add('visible');
-            colorMenu.setAttribute('aria-hidden', 'false');
+          if (colorToggle && colorMenu) {
+            const colorOptions = Array.from(colorMenu.querySelectorAll('.color-option'));
 
-            // Animate color options with stagger
-            colorOptions.forEach((option, i) => {
-              option.style.transitionDelay = `${i * 60}ms`;
-              requestAnimationFrame(() => {
-                option.classList.add('anim-visible');
+            colorToggle.addEventListener('click', (e) => {
+              e.stopPropagation();
+
+              if (!colorMenu.classList.contains('visible')) {
+                // Opening
+                colorMenu.classList.add('visible');
+                colorMenu.setAttribute('aria-hidden', 'false');
+
+                // Animate color options with stagger
+                colorOptions.forEach((option, i) => {
+                  option.style.transitionDelay = `${i * 60}ms`;
+                  requestAnimationFrame(() => {
+                    option.classList.add('anim-visible');
+                  });
+                });
+              } else {
+                // Closing
+                colorMenu.classList.remove('visible');
+                colorMenu.setAttribute('aria-hidden', 'true');
+
+                colorOptions.forEach(option => {
+                  option.classList.remove('anim-visible');
+                  option.style.transitionDelay = '';
+                });
+              }
+            });
+
+            // Close when clicking outside
+            document.addEventListener('click', (e) => {
+              if (colorMenu.classList.contains('visible') &&
+                !colorToggle.contains(e.target) &&
+                !colorMenu.contains(e.target)) {
+                colorMenu.classList.remove('visible');
+                colorMenu.setAttribute('aria-hidden', 'true');
+
+                colorOptions.forEach(option => {
+                  option.classList.remove('anim-visible');
+                  option.style.transitionDelay = '';
+                });
+              }
+            });
+
+            // Handle color selection
+            colorOptions.forEach(option => {
+              option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const value = option.dataset.value;
+                const color = option.dataset.color;
+                const name = option.dataset.name;
+
+                // Update toggle button
+                colorToggle.dataset.value = value;
+                const indicator = colorToggle.querySelector('.color-indicator');
+                const nameSpan = colorToggle.querySelector('.color-name');
+                if (indicator) indicator.style.backgroundColor = color;
+                if (nameSpan) nameSpan.textContent = name;
+
+                // Update wireColorPicker value if it exists for backward compatibility
+                const wireColorPicker = document.getElementById('wireColorPicker');
+                if (wireColorPicker) {
+                  wireColorPicker.value = value;
+                  // Dispatch change event so main.js picks it up
+                  wireColorPicker.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+
+                // Close dropdown
+                colorMenu.classList.remove('visible');
+                colorMenu.setAttribute('aria-hidden', 'true');
+
+                colorOptions.forEach(opt => {
+                  opt.classList.remove('anim-visible');
+                  opt.style.transitionDelay = '';
+                });
               });
             });
-          } else {
-            // Closing
-            colorMenu.classList.remove('visible');
-            colorMenu.setAttribute('aria-hidden', 'true');
+          }
 
-            colorOptions.forEach(option => {
-              option.classList.remove('anim-visible');
-              option.style.transitionDelay = '';
+          // NEW: show/hide wire color picker to the right of Add Wire
+          const addBtn = document.getElementById('addWireBtn');
+          const wireControl = document.getElementById('wireControl');
+          const colorPickerContainer = document.querySelector('.color-picker-container');
+
+          if (addBtn && wireControl && colorPickerContainer) {
+            // initialize based on current button text
+            setTimeout(() => {
+              if (addBtn.textContent.includes('Wire Mode: ON')) {
+                colorPickerContainer.style.display = 'inline-block';
+              } else {
+                colorPickerContainer.style.display = 'none';
+              }
+            }, 0);
+
+            addBtn.addEventListener('click', () => {
+              // use a microtask to let main.js update the button text first
+              setTimeout(() => {
+                if (addBtn.textContent.includes('Wire Mode: ON')) {
+                  colorPickerContainer.style.display = 'inline-block';
+                } else {
+                  colorPickerContainer.style.display = 'none';
+                }
+              }, 0);
             });
           }
-        });
+        })();
+      </script>
 
-        // Close when clicking outside
-        document.addEventListener('click', (e) => {
-          if (colorMenu.classList.contains('visible') &&
-            !colorToggle.contains(e.target) &&
-            !colorMenu.contains(e.target)) {
-            colorMenu.classList.remove('visible');
-            colorMenu.setAttribute('aria-hidden', 'true');
-
-            colorOptions.forEach(option => {
-              option.classList.remove('anim-visible');
-              option.style.transitionDelay = '';
-            });
-          }
-        });
-
-        // Handle color selection
-        colorOptions.forEach(option => {
-          option.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const value = option.dataset.value;
-            const color = option.dataset.color;
-            const name = option.dataset.name;
-
-            // Update toggle button
-            colorToggle.dataset.value = value;
-            const indicator = colorToggle.querySelector('.color-indicator');
-            const nameSpan = colorToggle.querySelector('.color-name');
-            if (indicator) indicator.style.backgroundColor = color;
-            if (nameSpan) nameSpan.textContent = name;
-
-            // Update wireColorPicker value if it exists for backward compatibility
-            const wireColorPicker = document.getElementById('wireColorPicker');
-            if (wireColorPicker) {
-              wireColorPicker.value = value;
-              // Dispatch change event so main.js picks it up
-              wireColorPicker.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-
-            // Close dropdown
-            colorMenu.classList.remove('visible');
-            colorMenu.setAttribute('aria-hidden', 'true');
-
-            colorOptions.forEach(opt => {
-              opt.classList.remove('anim-visible');
-              opt.style.transitionDelay = '';
-            });
-          });
-        });
-      }
-
-      // NEW: show/hide wire color picker to the right of Add Wire
-      const addBtn = document.getElementById('addWireBtn');
-      const wireControl = document.getElementById('wireControl');
-      const colorPickerContainer = document.querySelector('.color-picker-container');
-
-      if (addBtn && wireControl && colorPickerContainer) {
-        // initialize based on current button text
-        setTimeout(() => {
-          if (addBtn.textContent.includes('Wire Mode: ON')) {
-            colorPickerContainer.style.display = 'inline-block';
-          } else {
-            colorPickerContainer.style.display = 'none';
-          }
-        }, 0);
-
-        addBtn.addEventListener('click', () => {
-          // use a microtask to let main.js update the button text first
-          setTimeout(() => {
-            if (addBtn.textContent.includes('Wire Mode: ON')) {
-              colorPickerContainer.style.display = 'inline-block';
-            } else {
-              colorPickerContainer.style.display = 'none';
-            }
-          }, 0);
-        });
-      }
-    })();
-  </script>
+      <!-- Connection Info Console -->
+      <div id="connectionInfoConsole" class="connection-console">
+        <div class="connection-header">
+          <span>📋 Connection Info</span>
+          <button id="connectionToggleBtn" class="connection-toggle-btn">▲</button>
+        </div>
+        <div id="connectionContent" class="connection-content">
+          <div id="connectionLog" class="connection-log"></div>
+        </div>
+      </div>
 
 </body>
 
