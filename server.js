@@ -93,18 +93,42 @@ You MUST output ONLY this JSON, with no explanations, no markdown:
   "circuitIssues": [],
   "message": "Ready to upload!",
   "componentStates": {
-    "LED": "HIGH",
-    "BUTTON": {
-      "pressed": {"LED": "HIGH"},
-      "released": {"LED": "LOW"}
+    "LED": {
+      "type": "BLINK",
+      "pattern": [
+        {"state": "HIGH", "duration": 1000},
+        {"state": "LOW", "duration": 1000}
+      ],
+      "repeat": true
     }
   }
 }
 
-**Rules:**
-1. If digitalWrite(13, HIGH) and LED on pin 13 → LED: "HIGH"
-2. If digitalWrite(13, LOW) → LED: "LOW"
-3. If button controls LED → BUTTON with pressed/released states
+**CRITICAL RULES FOR LED BEHAVIOR:**
+
+STEP 1: Look for digitalWrite() calls in loop():
+- If you see digitalWrite(pin, HIGH) followed by delay(X) followed by digitalWrite(pin, LOW) followed by delay(Y)
+  → This is BLINKING behavior
+
+STEP 2: Determine type:
+- If BOTH digitalWrite(HIGH) AND digitalWrite(LOW) exist with delay() between them → type: "BLINK"
+- If ONLY digitalWrite(HIGH) with no LOW → type: "STATIC", state: "HIGH"
+- If ONLY digitalWrite(LOW) with no HIGH → type: "STATIC", state: "LOW"
+
+STEP 3: For BLINK type:
+- Extract delay() values in milliseconds
+- Create pattern array with {state, duration} for each step
+- If inside loop() → repeat: true
+- If not in loop() → repeat: false
+
+**MANDATORY EXAMPLE - ANALYZE THIS CODE:**
+\`\`\`cpp
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_PIN, LOW);
+  delay(1000);
+}
 
 -------------------------------------------------------------
 
@@ -145,6 +169,7 @@ app.post('/api/verify-circuit', async (req, res) => {
     const verification = JSON.parse(jsonText);
 
     console.log('✅ Verification complete:', verification.message);
+    console.log('📦 Full AI Response:', JSON.stringify(verification, null, 2));
 
     res.json(verification);
 

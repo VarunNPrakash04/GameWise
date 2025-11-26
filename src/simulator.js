@@ -12,6 +12,7 @@ export class CircuitSimulator {
         this.pinStates = {};
         this.isRunning = false;
         this.buttonListeners = new Map();
+        this.animationTimer = null; // For LED blinking
     }
 
     /**
@@ -73,29 +74,21 @@ export class CircuitSimulator {
 
         this.isRunning = true;
 
-        // Apply LED state - find which LED is connected to the active pin
+        // Apply LED behavior
         if (componentStates.LED) {
-            const shouldGlow = componentStates.LED === 'HIGH';
+            const ledConfig = componentStates.LED;
 
-            // Find which pin is being driven (look for digitalWrite in code)
-            // For now, assume it's the LED connected to any HIGH pin
-            this.components.forEach(comp => {
-                if (comp.userData.type === 'LED') {
-                    // Check if this LED is connected to a powered pin
-                    const isConnected = this.isLEDConnectedToPoweredPin(comp);
+            if (ledConfig.type === 'STATIC') {
+                // Static state - just set once
+                const shouldGlow = ledConfig.state === 'HIGH';
+                this.setLEDState(shouldGlow);
+                console.log(`💡 LED static: ${ledConfig.state}`);
 
-                    if (isConnected) {
-                        comp.traverse(child => {
-                            if (child.isMesh && child.material) {
-                                child.material.emissive = shouldGlow ? new THREE.Color(0xff0000) : new THREE.Color(0x000000);
-                                child.material.emissiveIntensity = shouldGlow ? 2 : 0;
-                                child.material.needsUpdate = true;
-                            }
-                        });
-                        console.log(`💡 LED glowing: ${shouldGlow}`);
-                    }
-                }
-            });
+            } else if (ledConfig.type === 'BLINK') {
+                // Blinking animation
+                this.startLEDAnimation(ledConfig.pattern, ledConfig.repeat);
+                console.log(`💡 LED blinking with ${ledConfig.pattern.length} steps`);
+            }
         }
 
         // Setup button states
@@ -142,6 +135,65 @@ export class CircuitSimulator {
     }
 
     /**
+ * Set LED state (on/off) for all connected LEDs
+ */
+    setLEDState(shouldGlow) {
+        this.components.forEach(comp => {
+            if (comp.userData.type === 'LED') {
+                const isConnected = this.isLEDConnectedToPoweredPin(comp);
+
+                if (isConnected) {
+                    comp.traverse(child => {
+                        if (child.isMesh && child.material) {
+                            child.material.emissive = shouldGlow ? new THREE.Color(0xff0000) : new THREE.Color(0x000000);
+                            child.material.emissiveIntensity = shouldGlow ? 2 : 0;
+                            child.material.needsUpdate = true;
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    /**
+     * Start LED blinking animation
+     */
+    startLEDAnimation(pattern, repeat) {
+        // Stop any existing animation
+        if (this.animationTimer) {
+            clearTimeout(this.animationTimer);
+        }
+
+        let currentStep = 0;
+
+        const runStep = () => {
+            if (!this.isRunning) return; // Stop if simulation stopped
+
+            const step = pattern[currentStep];
+            const shouldGlow = step.state === 'HIGH';
+
+            // Apply state
+            this.setLEDState(shouldGlow);
+            console.log(`💡 Animation step ${currentStep + 1}: ${step.state} for ${step.duration}ms`);
+
+            // Schedule next step
+            currentStep++;
+            if (currentStep >= pattern.length) {
+                if (repeat) {
+                    currentStep = 0; // Loop back to start
+                } else {
+                    return; // Animation complete
+                }
+            }
+
+            this.animationTimer = setTimeout(runStep, step.duration);
+        };
+
+        // Start animation
+        runStep();
+    }
+
+    /**
      * Stop simulation and reset all components
      */
     stopSimulation() {
@@ -149,12 +201,14 @@ export class CircuitSimulator {
 
         this.isRunning = false;
 
+        // Stop animation timer
+        if (this.animationTimer) {
+            clearTimeout(this.animationTimer);
+            this.animationTimer = null;
+        }
+
         // Turn off all LEDs
-        this.components.forEach(component => {
-            if (component.userData.type === 'LED') {
-                this.setLEDGlow(null, false, 0, component);
-            }
-        });
+        this.setLEDState(false);
 
         // Remove button listeners
         this.buttonListeners.clear();
