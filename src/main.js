@@ -324,20 +324,15 @@ function createButtonPlaceholder() {
     }, undefined, (error) => {
         console.error('Error loading Button.glb:', error);
     });
-    // Add invisible hitbox for easier clicking
-    const hitboxGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-    const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
-    const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
-    hitbox.name = 'ButtonHitbox';
-    group.add(hitbox);
+
     return group;
 
 }
 
 // SCENE SETUP
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a1a);
-scene.fog = new THREE.Fog(0x1a1a1a, 15, 60);
+scene.background = new THREE.Color(0x000000); // Pure black background
+scene.fog = new THREE.Fog(0x000000, 15, 45); // Dark blue-black fog (Tron Legacy style)
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(5, 4, 6);
@@ -1137,7 +1132,6 @@ window.addEventListener('pointermove', (e) => {
 
 // CLICK HANDLER (pin / wire selection / component dragging)
 window.addEventListener('pointerdown', (e) => {
-    console.log('👆 Pointerdown event fired, wireMode:', wireMode);
     updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
 
@@ -1154,9 +1148,8 @@ window.addEventListener('pointerdown', (e) => {
     }
 
 
-    // 1. Check if clicked on a component (skip if in wire mode to allow pin clicks)
-    if (!wireMode) {
-        console.log('🔍 Checking components...')
+    // 1. Check if clicked on a component (when not in wire mode)
+    if (true) {
         const intersects = raycaster.intersectObjects(components, true);
         let compHit = null;
         let rootComponent = null;
@@ -1181,7 +1174,6 @@ window.addEventListener('pointerdown', (e) => {
         }
 
         if (rootComponent) {
-            console.log('📦 Component found:', rootComponent.userData.type);
             const obj = rootComponent;
 
             // Special handling for breadboard
@@ -1332,33 +1324,10 @@ window.addEventListener('pointerdown', (e) => {
     if (!wireMode) return;
 
     // 6. If wire mode ON → check pin click for drag-to-connect
-    console.log('🔍 Wire mode ON, checking for pins. Total pinObjects:', pinObjects.length);
     const pinIntersect = raycaster.intersectObjects(pinObjects, true);
-    console.log('📍 Pin intersects found:', pinIntersect.length);
-    if (!pinIntersect.length) {
-        console.log('❌ No pins detected at click position');
-        return;
-    }
+    if (!pinIntersect.length) return;
 
-    // Find the actual pin object (could be the hit object itself or its parent)
-    let pin = pinIntersect[0].object;
-
-    // If we hit a helper/child, traverse up to find the pin
-    while (pin && !pin.userData.isPin) {
-        pin = pin.parent;
-    }
-
-    // If still no pin found, try the direct parent (for Arduino pins)
-    if (!pin || !pin.userData.isPin) {
-        pin = pinIntersect[0].object.parent;
-    }
-
-    if (!pin || !pin.userData.isPin) {
-        console.warn('Could not find pin object');
-        return;
-    }
-
-    console.log('✅ Pin found:', pin.name, 'Type:', pin.userData.isPin);
+    const pin = pinIntersect[0].object.parent;
 
     // Check if this pin already has a wire connected
     const existingWire = wires.find(w =>
@@ -2608,7 +2577,6 @@ function spawnBreadboard() {
                         new THREE.SphereGeometry(0.03),
                         new THREE.MeshBasicMaterial({ visible: false })
                     );
-                    helper.position.set(0, 0, 0); // Center it on the pin
                     obj.add(helper);
 
                     // Outline / hover ring

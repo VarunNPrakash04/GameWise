@@ -1,145 +1,104 @@
 import * as THREE from 'three';
 
-/**
- * Creates a 3D room background with dark grey walls
- * @param {THREE.Scene} scene - The Three.js scene to add the room to
- * @returns {Object} Object containing all room meshes for potential manipulation
- */
 export function createRoomBackground(scene) {
-    // Room dimensions
-    const ROOM_SIZE = 200;
-    const ROOM_HEIGHT = 50;
+    const FLOOR_Y = -2;
 
-    // Move the floor further down so camera/orbiting won't easily go under the tiles
-    const FLOOR_Y = -12; // moved down from -2 to -12
+    // ============================================
+    // TRON LEGACY CYBERPUNK TILE GRID
+    // ============================================
 
-    // Create grid texture for the room surfaces
-    function createGridTexture(size = 512) {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const context = canvas.getContext('2d');
+    // Grid parameters
+    const gridSize = 80;
+    const tileSize = 1.75;
+    const numTiles = gridSize / tileSize;
 
-        // Fill with darker background for maximum contrast
-        context.fillStyle = '#0f0f0f';
-        context.fillRect(0, 0, size, size);
+    // Tron Legacy blue (the iconic electric blue from the movie)
+    const tronBlue = 0x00d9ff; // Tron Legacy's signature cyan-blue
 
-        // Draw grid lines
-        context.strokeStyle = '#707070';
-        context.lineWidth = 2;
-        const gridSize = 32;
-        for (let i = 0; i <= size; i += gridSize) {
-            context.beginPath();
-            context.moveTo(i, 0);
-            context.lineTo(i, size);
-            context.stroke();
+    // Create tile grid
+    const tileGroup = new THREE.Group();
 
-            context.beginPath();
-            context.moveTo(0, i);
-            context.lineTo(size, i);
-            context.stroke();
+    for (let x = 0; x < numTiles; x++) {
+        for (let z = 0; z < numTiles; z++) {
+            // Create tile base (pure black, matching Tron Legacy)
+            const tileGeo = new THREE.PlaneGeometry(tileSize - 0.05, tileSize - 0.05);
+            const tileMat = new THREE.MeshBasicMaterial({
+                color: 0x000000, // Pure black floor - unaffected by lighting
+            });
+
+            const tile = new THREE.Mesh(tileGeo, tileMat);
+            tile.rotation.x = -Math.PI / 2;
+            tile.position.set(
+                x * tileSize - gridSize / 2 + tileSize / 2,
+                FLOOR_Y + 0.01,
+                z * tileSize - gridSize / 2 + tileSize / 2
+            );
+
+            tileGroup.add(tile);
+
+            // Add glowing Tron Legacy blue edges (static, no animation)
+            // Create 4 edge lines for each tile
+            const edgePositions = [
+                // Top edge
+                [
+                    new THREE.Vector3(-tileSize / 2 + 0.025, 0, -tileSize / 2 + 0.025),
+                    new THREE.Vector3(tileSize / 2 - 0.025, 0, -tileSize / 2 + 0.025)
+                ],
+                // Right edge
+                [
+                    new THREE.Vector3(tileSize / 2 - 0.025, 0, -tileSize / 2 + 0.025),
+                    new THREE.Vector3(tileSize / 2 - 0.025, 0, tileSize / 2 - 0.025)
+                ],
+                // Bottom edge
+                [
+                    new THREE.Vector3(tileSize / 2 - 0.025, 0, tileSize / 2 - 0.025),
+                    new THREE.Vector3(-tileSize / 2 + 0.025, 0, tileSize / 2 - 0.025)
+                ],
+                // Left edge
+                [
+                    new THREE.Vector3(-tileSize / 2 + 0.025, 0, tileSize / 2 - 0.025),
+                    new THREE.Vector3(-tileSize / 2 + 0.025, 0, -tileSize / 2 + 0.025)
+                ]
+            ];
+
+            edgePositions.forEach(([start, end]) => {
+                const points = [start, end];
+                const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+                const lineMat = new THREE.LineBasicMaterial({
+                    color: tronBlue, // Tron Legacy blue
+                    opacity: 0.7,
+                    transparent: true,
+                    linewidth: 2
+                });
+
+                const line = new THREE.Line(lineGeo, lineMat);
+                line.position.copy(tile.position);
+                line.position.y = FLOOR_Y + 0.02; // Slightly above tile
+
+                tileGroup.add(line);
+            });
         }
-
-        // Center reference lines
-        context.strokeStyle = '#a0a0a0';
-        context.lineWidth = 2.5;
-        const center = size / 2;
-        context.beginPath();
-        context.moveTo(center, 0);
-        context.lineTo(center, size);
-        context.stroke();
-        context.beginPath();
-        context.moveTo(0, center);
-        context.lineTo(size, center);
-        context.stroke();
-
-        return new THREE.CanvasTexture(canvas);
     }
 
-    function createMaterialWithTexture() {
-        const texture = createGridTexture(512);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(20, 20);
+    scene.add(tileGroup);
 
-        return new THREE.MeshStandardMaterial({
-            color: 0x151515,
-            map: texture,
-            roughness: 0.6,
-            metalness: 0.05,
-            emissive: 0x000000,
-            emissiveIntensity: 0,
-            side: THREE.DoubleSide
-        });
-    }
+    // ============================================
+    // AMBIENT LIGHTING (Tron Legacy style)
+    // ============================================
 
-    // FLOOR - moved down using FLOOR_Y
-    const groundGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
-    const ground = new THREE.Mesh(groundGeometry, createMaterialWithTexture());
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = FLOOR_Y; // lowered
-    ground.receiveShadow = false;
-    scene.add(ground);
+    // Subtle blue ambient glow
+    const ambientGlow = new THREE.AmbientLight(0x001a33, 0.2);
+    scene.add(ambientGlow);
 
-    // CEILING and walls should span from FLOOR_Y up to FLOOR_Y + ROOM_HEIGHT
-    const ceilingY = FLOOR_Y + ROOM_HEIGHT;
+    // Tron blue rim light
+    const blueLight = new THREE.DirectionalLight(0x00d9ff, 0.3);
+    blueLight.position.set(10, 5, 10);
+    scene.add(blueLight);
 
-    const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
-    const ceiling = new THREE.Mesh(ceilingGeometry, createMaterialWithTexture());
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = ceilingY;
-    ceiling.receiveShadow = false;
-    scene.add(ceiling);
+    // Secondary blue accent light
+    const accentLight = new THREE.DirectionalLight(0x0099cc, 0.2);
+    accentLight.position.set(-10, 5, -10);
+    scene.add(accentLight);
 
-    // Walls height and center
-    const wallHeight = ROOM_HEIGHT;
-    const wallCenterY = FLOOR_Y + wallHeight / 2;
-
-    // BACK WALL
-    const backWallGeometry = new THREE.PlaneGeometry(ROOM_SIZE, wallHeight);
-    const backWall = new THREE.Mesh(backWallGeometry, createMaterialWithTexture());
-    backWall.position.z = -ROOM_SIZE / 2;
-    backWall.position.y = wallCenterY;
-    backWall.receiveShadow = false;
-    scene.add(backWall);
-
-    // FRONT WALL
-    const frontWallGeometry = new THREE.PlaneGeometry(ROOM_SIZE, wallHeight);
-    const frontWall = new THREE.Mesh(frontWallGeometry, createMaterialWithTexture());
-    frontWall.position.z = ROOM_SIZE / 2;
-    frontWall.position.y = wallCenterY;
-    frontWall.rotation.y = Math.PI;
-    frontWall.receiveShadow = false;
-    scene.add(frontWall);
-
-    // LEFT WALL
-    const leftWallGeometry = new THREE.PlaneGeometry(ROOM_SIZE, wallHeight);
-    const leftWall = new THREE.Mesh(leftWallGeometry, createMaterialWithTexture());
-    leftWall.position.x = -ROOM_SIZE / 2;
-    leftWall.position.y = wallCenterY;
-    leftWall.rotation.y = Math.PI / 2;
-    leftWall.receiveShadow = false;
-    scene.add(leftWall);
-
-    // RIGHT WALL
-    const rightWallGeometry = new THREE.PlaneGeometry(ROOM_SIZE, wallHeight);
-    const rightWall = new THREE.Mesh(rightWallGeometry, createMaterialWithTexture());
-    rightWall.position.x = ROOM_SIZE / 2;
-    rightWall.position.y = wallCenterY;
-    rightWall.rotation.y = -Math.PI / 2;
-    rightWall.receiveShadow = false;
-    scene.add(rightWall);
-
-    // Return room components and FLOOR_Y so callers can clamp camera if needed
-    return {
-        ground,
-        ceiling,
-        backWall,
-        frontWall,
-        leftWall,
-        rightWall,
-        ROOM_SIZE,
-        ROOM_HEIGHT,
-        FLOOR_Y
-    };
+    return { FLOOR_Y };
 }
