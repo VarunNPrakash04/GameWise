@@ -815,6 +815,8 @@ loader.load('/Arduino.glb', (gltf) => {
     console.log("Loaded pins:", pinObjects.map(p => p.name));
 });
 
+
+
 // HOVER PIN and DRAG COMPONENT
 window.addEventListener('pointermove', (e) => {
     // Handle breadboard rotation icon dragging
@@ -1326,15 +1328,28 @@ window.addEventListener('pointerdown', (e) => {
     // 4. If clicked empty, deselect wire and component
     deselectWire();
     deselectComponent();
+    // Debug: see what we're actually clicking
+    const allIntersects = raycaster.intersectObjects(scene.children, true);
+    console.log("🖱️ Clicked on:", allIntersects.length > 0 ? allIntersects[0].object.name : "nothing", "Type:", allIntersects[0]?.object?.parent?.userData?.type);
 
     // 5. If wire mode OFF → done
     if (!wireMode) return;
 
     // 6. If wire mode ON → check pin click for drag-to-connect
-    const pinIntersect = raycaster.intersectObjects(pinObjects, true);
+    // Get all children recursively for better pin detection
+    const allPinChildren = [];
+    pinObjects.forEach(pin => {
+        allPinChildren.push(pin);
+        pin.traverse(child => {
+            if (child.isMesh) allPinChildren.push(child);
+        });
+    });
+    const pinIntersect = raycaster.intersectObjects(allPinChildren, false);
     if (!pinIntersect.length) return;
 
+
     const pin = pinIntersect[0].object.parent;
+
 
     // Check if this pin already has a wire connected
     const existingWire = wires.find(w =>
@@ -2831,6 +2846,13 @@ function spawnBreadboard() {
                     if (child.material.length === 1) {
                         child.material = child.material[0];
                     }
+                }
+            });
+
+            // Make breadboard body non-raycastable so pins can be clicked
+            breadboard.traverse((child) => {
+                if (child.isMesh && !child.parent.userData.isPin) {
+                    child.raycast = () => { }; // Disable raycasting for non-pin meshes
                 }
             });
 
