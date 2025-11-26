@@ -6,14 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server.js"
   },
   "devDependencies": {
     "vite": "^7.2.2"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",
+    "@google/generative-ai": "^0.21.0",
     "codemirror": "^6.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
     "gsap": "^3.13.0",
     "three": "^0.181.1"
   }

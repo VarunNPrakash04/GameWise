@@ -4,19 +4,27 @@
  */
 
 import { verifyArduinoCode } from './arduinoVerifier.js';
+import { CircuitSimulator } from './simulator.js';
 
 let idePanel = null;
 let editorInstance = null;
 let isIDEOpen = false;
 let wireConnectionsRef = null;
 let componentsRef = null;
+let simulator = null;
+let wiresRef = null;
+let sceneRef = null;
+let isCodeVerified = false; // Track if code passed verification
 
 /**
  * Initialize the Arduino IDE panel
  */
-export function initArduinoIDE(wireConnections, components) {
+export function initArduinoIDE(wireConnections, components, wires, scene) {
     wireConnectionsRef = wireConnections;
     componentsRef = components;
+    wiresRef = wires;
+    sceneRef = scene;
+    simulator = new CircuitSimulator(scene, components, wires);
     // Create the IDE panel container
     idePanel = document.createElement('div');
     idePanel.id = 'arduino-ide-panel';
@@ -152,9 +160,10 @@ function setupEventListeners() {
     });
 
     // Verify button
-    document.getElementById('ide-verify-btn').addEventListener('click', () => {
+    document.getElementById('ide-verify-btn').addEventListener('click', async () => {
         clearTerminal();
         addTerminalLine('Verifying code...', 'info');
+        isCodeVerified = false; // Reset verification status
 
         if (!editorInstance) {
             addTerminalLine('ERROR: Editor not initialized', 'error');
@@ -167,40 +176,85 @@ function setupEventListeners() {
         // Show compiling message
         addTerminalLine('Compiling sketch...', 'info');
 
-        // Simulate compilation delay
-        setTimeout(() => {
-            // Run verification
-            const result = verifyArduinoCode(code, wireConnectionsRef, componentsRef);
+        try {
+            // Call backend verification
+            const result = await simulator.verify(code);
 
-            if (!result.success) {
-                addTerminalLine('Compilation failed!', 'error');
-                result.errors.forEach(err => {
-                    addTerminalLine(`Line ${err.line}: ${err.message}`, 'error');
+            if (!result.syntaxValid) {
+                addTerminalLine('❌ Compilation failed!', 'error');
+                addTerminalLine('', 'info');
+                result.syntaxErrors.forEach(err => {
+                    addTerminalLine(`  ${err}`, 'error');
+                });
+                return;
+            }
+
+            addTerminalLine('✅ Compilation successful!', 'success');
+            isCodeVerified = true; // Mark as verified
+
+            if (!result.circuitValid) {
+                addTerminalLine('', 'info');
+                addTerminalLine('⚠️ Circuit Issues:', 'warning');
+                result.circuitIssues.forEach(issue => {
+                    addTerminalLine(`  ${issue}`, 'warning');
                 });
             } else {
-                addTerminalLine('Compilation successful!', 'success');
-                addTerminalLine('', 'info');
-                addTerminalLine('=== SIMULATION RESULTS ===', 'info');
-
-                if (result.simulation && result.simulation.length > 0) {
-                    result.simulation.forEach(sim => {
-                        if (sim.success) {
-                            addTerminalLine(`✓ ${sim.message}`, 'success');
-                        } else {
-                            addTerminalLine(`✗ ${sim.message}`, 'warning');
-                        }
-                    });
-                } else {
-                    addTerminalLine('No simulation output', 'warning');
-                }
+                addTerminalLine('✅ Circuit connections valid!', 'success');
             }
-        }, 500);
+
+            addTerminalLine('', 'info');
+            addTerminalLine(result.message || 'Ready to upload!', 'info');
+
+        } catch (error) {
+            addTerminalLine('❌ Verification failed!', 'error');
+            addTerminalLine(`Error: ${error.message}`, 'error');
+            addTerminalLine('', 'info');
+            addTerminalLine('Make sure the backend server is running:', 'warning');
+            addTerminalLine('  npm run server', 'info');
+        }
     });
 
     // Upload button
-    document.getElementById('ide-upload-btn').addEventListener('click', () => {
-        console.log('Uploading code...');
-        alert('Code upload is not implemented yet. This would upload to Arduino Uno.');
+    document.getElementById('ide-upload-btn').addEventListener('click', async () => {
+        // Check if code has been verified
+        if (!isCodeVerified) {
+            addTerminalLine('⚠️ Please verify code first before uploading!', 'warning');
+            return;
+        }
+
+        clearTerminal();
+        addTerminalLine('Uploading to board...', 'info');
+
+        try {
+            // Get code again
+            const code = editorInstance.getValue();
+
+            // Re-verify to get simulation data
+            const result = await simulator.verify(code);
+
+            if (!result.syntaxValid) {
+                addTerminalLine('❌ Upload failed - code has errors!', 'error');
+                isCodeVerified = false;
+                return;
+            }
+
+            addTerminalLine('✅ Upload complete!', 'success');
+            addTerminalLine('', 'info');
+            addTerminalLine('🎮 Starting simulation...', 'info');
+
+            // Start simulation
+            simulator.startSimulation(result.simulation);
+
+            addTerminalLine('✅ Simulation running!', 'success');
+            addTerminalLine('', 'info');
+            addTerminalLine('Interact with components to see results:', 'info');
+            addTerminalLine('  - LEDs will glow based on pin states', 'info');
+            addTerminalLine('  - Click buttons to trigger actions', 'info');
+
+        } catch (error) {
+            addTerminalLine('❌ Upload failed!', 'error');
+            addTerminalLine(`Error: ${error.message}`, 'error');
+        }
     });
 
     // Clear button

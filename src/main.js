@@ -539,6 +539,11 @@ const moveBoardBtn = document.getElementById("moveBoardBtn");
 
 let breadboardMoveMode = false;
 let breadboard = null;
+let breadboardDragging = false;
+let breadboardDragOffset = new THREE.Vector3();
+let breadboardDraggingPlane = new THREE.Plane();
+let axisLock = null; // 'x', 'y', 'z', or null
+let breadboardStartPos = new THREE.Vector3();
 
 // TOGGLE MOVE BOARD MODE
 moveBoardBtn.addEventListener("click", () => {
@@ -584,6 +589,114 @@ moveBoardBtn.addEventListener("click", () => {
         // Unlock camera controls
         controls.enabled = true;
         console.log("🔓 Camera unlocked - Move Board mode OFF");
+    }
+});
+
+// BREADBOARD DRAGGING HANDLERS
+window.addEventListener('pointerdown', (e) => {
+    if (!breadboardMoveMode || !breadboard) return;
+
+    // Update mouse position
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const mouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const mouse = new THREE.Vector2(mouseX, mouseY);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check if clicking on breadboard (but not the rotation icon)
+    const intersects = raycaster.intersectObject(breadboard, true);
+
+    if (intersects.length > 0) {
+        // Check if we hit the rotation icon
+        const hitIcon = intersects[0].object.parent?.userData?.isRotationIcon ||
+            intersects[0].object.userData?.isRotationIcon;
+
+        if (!hitIcon) {
+            // Start dragging breadboard
+            breadboardDragging = true;
+            breadboardStartPos.copy(breadboard.position);
+
+            // Set up dragging plane (XZ plane at breadboard height)
+            const planeNormal = new THREE.Vector3(0, 1, 0); // Y-up
+            const planePoint = new THREE.Vector3();
+            breadboard.getWorldPosition(planePoint);
+            breadboardDraggingPlane.setFromNormalAndCoplanarPoint(planeNormal, planePoint);
+
+            // Calculate offset
+            const intersectPoint = new THREE.Vector3();
+            raycaster.ray.intersectPlane(breadboardDraggingPlane, intersectPoint);
+            breadboardDragOffset.subVectors(planePoint, intersectPoint);
+
+            console.log('🔵 Started dragging breadboard');
+        }
+    }
+});
+
+window.addEventListener('pointermove', (e) => {
+    if (!breadboardDragging || !breadboard) return;
+
+    // Update mouse position
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const mouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    const mouse = new THREE.Vector2(mouseX, mouseY);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    // Get intersection with dragging plane
+    const intersectPoint = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(breadboardDraggingPlane, intersectPoint)) {
+        // Calculate new position
+        const newPos = intersectPoint.clone().add(breadboardDragOffset);
+
+        // Apply axis lock if active
+        if (axisLock === 'x') {
+            // Only move on X axis
+            breadboard.position.x = newPos.x;
+        } else if (axisLock === 'y') {
+            // Only move on Y axis
+            breadboard.position.y = newPos.y;
+        } else if (axisLock === 'z') {
+            // Only move on Z axis
+            breadboard.position.z = newPos.z;
+        } else {
+            // Free movement (no axis lock)
+            breadboard.position.copy(newPos);
+        }
+
+        // Update all connected wires
+        updateConnectedWires(breadboard);
+    }
+});
+
+// AXIS LOCK KEYBOARD HANDLERS
+window.addEventListener('keydown', (e) => {
+    if (!breadboardMoveMode || !breadboardDragging) return;
+
+    const key = e.key.toLowerCase();
+    if (key === 'x' || key === 'y' || key === 'z') {
+        axisLock = key;
+        console.log(`🔒 Axis locked to: ${key.toUpperCase()}`);
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    if (key === 'x' || key === 'y' || key === 'z') {
+        axisLock = null;
+        console.log('🔓 Axis lock released');
+    }
+});
+
+
+window.addEventListener('pointerup', () => {
+    if (breadboardDragging) {
+        breadboardDragging = false;
+        axisLock = null; // Reset axis lock
+        console.log('🔵 Stopped dragging breadboard');
     }
 });
 
@@ -2221,11 +2334,7 @@ function highlightNearbyPinsForButton(button) {
     const legs = [];
 
     button.traverse((child) => {
-        if (child.userData.isPin || (child.name && (
-            child.name.toLowerCase().includes('leg') ||
-            child.name.toLowerCase().includes('pin') ||
-            child.name.toLowerCase().includes('terminal')
-        ))) {
+        if (child.name === 'Button_Pin_1' || child.name === 'Button_Pin_2') {
             legs.push(child);
         }
     });
@@ -2400,19 +2509,15 @@ function snapLEDToNearestPins(led) {
     }
 }
 
-// BUTTON-specific snapping - snaps all 4 legs to breadboard pins
+// BUTTON-specific snapping - snaps 2 pins to breadboard pins
 function snapButtonToNearestPins(button) {
-    // Find the button legs in the model
+    // Find the button pins in the model (Button_Pin_1 and Button_Pin_2)
     const legs = [];
 
     button.traverse((child) => {
-        if (child.userData.isPin || (child.name && (
-            child.name.toLowerCase().includes('leg') ||
-            child.name.toLowerCase().includes('pin') ||
-            child.name.toLowerCase().includes('terminal')
-        ))) {
+        if (child.name === 'Button_Pin_1' || child.name === 'Button_Pin_2') {
             legs.push(child);
-            console.log('Found button leg:', child.name, 'isPin:', child.userData.isPin);
+            console.log('Found button pin:', child.name);
         }
     });
 
@@ -2594,6 +2699,92 @@ function spawnComponent(type) {
     }
 }
 
+// ===== BUTTON PRESS ANIMATION =====
+function pressButton(button) {
+    if (!button || button.userData.isPressed) return;
+
+    // Find the Button_Top mesh
+    let topMesh = null;
+    button.traverse((child) => {
+        if (child.isMesh && child.name === 'Button_Top') {
+            topMesh = child;
+        }
+    });
+
+    if (!topMesh) {
+        console.warn('⚠️ Button_Top mesh not found in button model');
+        return;
+    }
+
+    button.userData.isPressed = true;
+
+    // Store original position if not stored
+    if (!topMesh.userData._origPos) {
+        topMesh.userData._origPos = topMesh.position.clone();
+    }
+
+    // Move top down (press animation)
+    // Depth of 0.15 for deeper press (half the button)
+    topMesh.position.z = (topMesh.userData._origPos.z || 0) - 0.15;
+
+    console.log('🔘 Button PRESSED!');
+}
+
+function releaseButton(button) {
+    if (!button || !button.userData.isPressed) return;
+
+    // Find the Button_Top mesh
+    let topMesh = null;
+    button.traverse((child) => {
+        if (child.isMesh && child.name === 'Button_Top') {
+            topMesh = child;
+        }
+    });
+
+    if (!topMesh || !topMesh.userData._origPos) return;
+
+    // Restore original position (spring back up)
+    topMesh.position.copy(topMesh.userData._origPos);
+    button.userData.isPressed = false;
+
+    console.log('🔘 Button RELEASED!');
+}
+
+// Track which button is currently pressed
+let pressedButton = null;
+
+// ===== BUTTON PRESS MOUSE HANDLERS =====
+window.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return; // Only left click
+
+    updateMouse(e);
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(components, true);
+
+    // Check if we clicked on Button_Top mesh specifically
+    for (const hit of intersects) {
+        // Check if this is the Button_Top mesh
+        if (hit.object.name === 'Button_Top') {
+            const root = findComponentRoot(hit.object);
+            if (root && root.userData.type === 'BUTTON' && !wireMode) {
+                pressButton(root);
+                pressedButton = root;
+                break;
+            }
+        }
+    }
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (e.button !== 0) return;
+
+    if (pressedButton) {
+        releaseButton(pressedButton);
+        pressedButton = null;
+    }
+});
+
 // RESIZE
 window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -2616,9 +2807,7 @@ function spawnBreadboard() {
             breadboard.position.set(0, 0, 2);
             breadboard.scale.set(1, 1, 1);
 
-
             breadboard.userData.type = "BREADBOARD";
-
             // Set breadboard invisible BEFORE adding to scene
             breadboard.traverse((child) => {
                 if (child.material) {
@@ -2626,12 +2815,9 @@ function spawnBreadboard() {
                     child.material.opacity = 0;
                 }
             });
-
             scene.add(breadboard);
-
             // Animate breadboard spawn
             animateComponentSpawn(breadboard, 0.3);
-
             components.push(breadboard);
 
             // Detect breadboard pins (names must start with BB_ )
@@ -2730,7 +2916,7 @@ function updateConnectedWires(component) {
 }
 // Initialize Arduino IDE
 // Initialize Arduino IDE with references to wireConnections and components
-initArduinoIDE(wireConnections, components);
+initArduinoIDE(wireConnections, components, wires, scene);
 
 // Setup IDE toggle button
 const ideToggleBtn = document.getElementById('ide-toggle-btn');
@@ -3597,20 +3783,12 @@ function openManualSnapModal(component) {
     } else if (type === 'BUTTON') {
         modalInputs.innerHTML = `
             <div class="modal-input-group">
-                <label>Leg 1 Pin:</label>
-                <input type="text" id="input_leg1" placeholder="e.g., A1" />
+                <label>Pin 1 (Button_Pin_1):</label>
+                <input type="text" id="input_pin1" placeholder="e.g., A1, B5" />
             </div>
             <div class="modal-input-group">
-                <label>Leg 2 Pin:</label>
-                <input type="text" id="input_leg2" placeholder="e.g., A3" />
-            </div>
-            <div class="modal-input-group">
-                <label>Leg 3 Pin:</label>
-                <input type="text" id="input_leg3" placeholder="e.g., D1" />
-            </div>
-            <div class="modal-input-group">
-                <label>Leg 4 Pin:</label>
-                <input type="text" id="input_leg4" placeholder="e.g., D3" />
+                <label>Pin 2 (Button_Pin_2):</label>
+                <input type="text" id="input_pin2" placeholder="e.g., A3, B7" />
             </div>
         `;
     }
