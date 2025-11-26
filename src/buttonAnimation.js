@@ -18,20 +18,20 @@ let allAnimationsTriggered = false;
 export function initButtonAnimation() {
     // Prevent double animation
     if (componentsButtonAnimated) {
-        console.log('🔒 Components button already animated, skipping...');
+        //console.log('🔒 Components button already animated, skipping...');
         return;
     }
 
     const componentsToggle = document.getElementById('components-toggle');
 
     if (!componentsToggle) {
-        console.warn('⚠️ Components toggle button not found');
+        //console.warn('⚠️ Components toggle button not found');
         return;
     }
 
     // Mark as animated IMMEDIATELY
     componentsButtonAnimated = true;
-    console.log('🎬 Starting Components button animation...');
+    //console.log('🎬 Starting Components button animation...');
 
     // Kill any existing animations on this element (safety)
     gsap.killTweensOf(componentsToggle);
@@ -53,7 +53,7 @@ export function initButtonAnimation() {
         ease: 'power2.out',
         delay: 0.2,
         onComplete: () => {
-            console.log('✅ Components button animation complete');
+            //console.log('✅ Components button animation complete');
         }
     });
 }
@@ -64,19 +64,19 @@ export function initButtonAnimation() {
 
 function animateArduinoFadeIn(arduino) {
     if (!arduino) {
-        console.warn('⚠️ Arduino object not found');
+        //console.warn('⚠️ Arduino object not found');
         return;
     }
 
     // Prevent double animation
     if (arduinoAnimated) {
-        console.log('🔒 Arduino already animated, skipping...');
+        //console.log('🔒 Arduino already animated, skipping...');
         return;
     }
 
     // Mark as animated IMMEDIATELY
     arduinoAnimated = true;
-    console.log('🎬 Starting Arduino animation...');
+    //console.log('🎬 Starting Arduino animation...');
 
     // Kill any existing animations (safety)
     gsap.killTweensOf(arduino.position);
@@ -116,7 +116,7 @@ function animateArduinoFadeIn(arduino) {
                 ease: 'power2.out',
                 delay: 0.3,
                 onComplete: () => {
-                    console.log('✅ Arduino animation complete');
+                    //console.log('✅ Arduino animation complete');
                 }
             });
         }
@@ -133,13 +133,13 @@ function animateArduinoFadeIn(arduino) {
 export function triggerAllAnimations() {
     // Prevent double triggering
     if (allAnimationsTriggered) {
-        console.log('🔒 All animations already triggered, skipping...');
+        //console.log('🔒 All animations already triggered, skipping...');
         return;
     }
 
     // Mark as triggered IMMEDIATELY
     allAnimationsTriggered = true;
-    console.log('🎬 Triggering all UI animations...');
+    //console.log('🎬 Triggering all UI animations...');
 
     // Animate Components button
     initButtonAnimation();
@@ -157,7 +157,7 @@ export function triggerArduinoAnimation(arduino) {
         animateArduinoFadeIn(arduino);
     } else {
         // Wait for splash to be dismissed
-        console.log('⏳ Waiting for splash dismissal before animating Arduino...');
+        //console.log('⏳ Waiting for splash dismissal before animating Arduino...');
         window.addEventListener('splashDismissed', () => {
             animateArduinoFadeIn(arduino);
         }, { once: true });
@@ -170,7 +170,7 @@ export function triggerArduinoAnimation(arduino) {
  */
 export function animateComponentSpawn(component, duration = 0.3) {
     if (!component) {
-        console.warn('⚠️ Component not found for spawn animation');
+        // console.warn('⚠️ Component not found for spawn animation');
         return;
     }
 
