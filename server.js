@@ -21,18 +21,66 @@ function buildVerificationPrompt(code, circuit) {
 Components: ${JSON.stringify(circuit.components, null, 2)}
 Wires: ${JSON.stringify(circuit.wires, null, 2)}
 
-**CRITICAL BREADBOARD KNOWLEDGE:**
-Breadboard pins are electrically connected in rows:
-- Pins BB_A1, BB_B1, BB_C1, BB_D1, BB_E1 are ALL connected (same row)
-- Pins BB_F1, BB_G1, BB_H1, BB_I1, BB_J1 are ALL connected (same row)
-- Power rails: All VCC pins are connected, all GND pins are connected
-- Example: If Pin_13 connects to BB_C3, and LED is on BB_D3, they ARE electrically connected (same row)
 
-**To find which Arduino pin powers an LED:**
-1. Find which breadboard pin the LED is connected to (e.g., BB_D3)
-2. Check which other pins in that row have wires (BB_A3, BB_B3, BB_C3, BB_D3, BB_E3)
-3. Follow the wire from that row pin back to the Arduino pin
-4. Example: LED on BB_D3 → same row as BB_C3 → wire from Pin_13 to BB_C3 → LED is powered by Pin_13
+**STEP 1: LEARN COMPONENT FUNDAMENTALS**
+
+**LED (Light Emitting Diode):**
+- Has 2 legs: LONG leg = Anode (+), SHORT leg = Cathode (-)
+- Current flows: Anode → Cathode (long to short)
+- To light up: Anode must be HIGH voltage, Cathode must be LOW (GND)
+- Example: Long leg to Pin_13 (HIGH), Short leg to GND → LED glows
+- Example: Long leg to BB_D3, Pin_13 wired to BB_C3 (same row) → Anode is HIGH → LED glows if cathode is GND
+
+**Push Button:**
+- Has 4 pins but only 2 matter (opposite corners are connected)
+- When PRESSED: connects the two sides, current flows
+- When RELEASED: disconnects, no current flows
+- Arduino reads: INPUT_PULLUP mode → reads LOW when pressed, HIGH when released
+- Example: Button pin to D2, if(digitalRead(2) == LOW) → button is pressed
+
+**Arduino Pins:**
+- OUTPUT mode: Can be set HIGH (5V) or LOW (0V) using digitalWrite()
+- INPUT/INPUT_PULLUP mode: Reads voltage using digitalRead()
+- Pin_13 = Digital pin 13 (code uses "13")
+- Pin_GND = Ground (0V)
+- Pin_5V = Power (5V)
+
+**STEP 2: TRACE CURRENT FLOW**
+
+Before analyzing, trace how current flows:
+1. Find all HIGH pins (digitalWrite(pin, HIGH))
+2. For each HIGH pin, find which breadboard row it connects to
+3. Check if LED anode is in that row (remember: A-E are connected)
+4. Check if LED cathode connects to GND (directly or through breadboard)
+5. If YES to both → LED should glow
+
+Example circuit:
+- Wire: Pin_13 → BB_C3
+- LED: Long leg on BB_D3, Short leg on BB_D1
+- Wire: BB_B1 → Pin_GND
+- Code: digitalWrite(13, HIGH)
+
+Trace:
+1. Pin_13 is HIGH
+2. Pin_13 connects to BB_C3
+3. BB_C3 is in row 3 (A3-E3 connected)
+4. LED long leg on BB_D3 → SAME ROW → Anode is HIGH ✓
+5. LED short leg on BB_D1 → row 1
+6. BB_B1 in row 1 connects to GND → Cathode is LOW ✓
+7. Result: LED GLOWS → shouldGlow: true, connectedToPin: "D13"
+
+**STEP 3: ANALYZE BUTTON INTERACTIONS**
+
+For buttons:
+1. Find button pins in circuit
+2. Check if code uses digitalRead() on any Arduino pin
+3. Trace which breadboard row that Arduino pin connects to
+4. Check if button is in that row
+5. If code has if(digitalRead(pin) == LOW), button press triggers that code
+6. See what happens inside the if statement (usually digitalWrite to another pin)
+7. Set onPress.targetPin to that pin and action to "TOGGLE"
+
+**NOW ANALYZE THE CIRCUIT:**
 
 **Arduino Code:**
 \`\`\`cpp
