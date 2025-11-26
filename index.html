@@ -449,35 +449,70 @@
     }
 
     #components-toggle {
-      padding: 10px 16px;
-      background: #333;
-      color: white;
-      border-radius: 6px;
-      border: 1px solid #555;
+      position: fixed;
+      left: 0;
+      top: 50px;
+      background: #67bbfb;
+      color: #ffffff;
+      border: none;
+      padding: 12px 8px;
+      width: 40px;
+      height: 140px;
       cursor: pointer;
+      z-index: 999;
+      transition: all 0.3s;
       font-size: 14px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      writing-mode: vertical-lr;
+      text-orientation: mixed;
+      border-radius: 0 12px 12px 0;
+      box-shadow: 3px 0 10px rgba(19, 85, 226, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      /* Add opacity transition */
+      opacity: 1;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    #components-toggle:hover {
+      background: #5aa8e8;
+      transform: translateX(5px);
+      box-shadow: 5px 0 15px rgba(19, 85, 226, 0.5);
     }
 
     #components-menu {
       position: absolute;
-      top: 44px;
+      top: -10px;
       left: 0;
+      padding-left: 12px;
+      /* Add internal padding instead of offset */
       display: none;
-      flex-direction: column;
-      gap: 8px;
-      background: #1a1a1a;
-      padding: 8px;
-      border-radius: 8px;
-      border: 1px solid #333;
-      min-width: 220px;
-      max-height: 220px;
-      overflow-y: auto;
-      scroll-behavior: smooth;
-      -webkit-overflow-scrolling: touch;
-      z-index: 300;
-      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+      flex-direction: row;
+      /* Changed from column to row */
+      gap: 10px;
+      padding: 12px;
+      background: linear-gradient(135deg, rgba(30, 30, 30, 0.95), rgba(42, 42, 42, 0.92));
+      backdrop-filter: blur(16px);
+      border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      z-index: 10001;
       transform-origin: top left;
-      will-change: transform, opacity;
+      /* Changed from top center to top left */
+      transform: scale(0.95);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      min-width: auto;
+      /* Changed from 180px */
+      max-width: none;
+      /* Allow horizontal expansion */
+      white-space: nowrap;
+      /* Prevent wrapping */
+      overflow-x: auto;
+      /* Horizontal scroll if needed */
+      overflow-y: visible;
     }
 
     /* subtle custom scrollbar */
@@ -509,22 +544,30 @@
 
     /* Animated list items - ALL .spawn buttons get the same styling */
     #components-menu .spawn {
-      display: block;
-      width: 100%;
+      display: inline-block;
+      /* Changed from block */
+      width: auto;
+      /* Changed from 100% */
+      min-width: 120px;
+      /* Add minimum width */
       margin: 0;
-      padding: 10px 12px;
+      padding: 10px 16px;
+      /* Slightly more horizontal padding */
       background: linear-gradient(90deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
       color: #e8eefc;
       border: none;
       border-radius: 10px;
       cursor: pointer;
-      text-align: left;
+      text-align: center;
+      /* Changed from left to center */
       font-weight: 600;
       letter-spacing: 0.2px;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.02);
-      transform-origin: left center;
+      transform-origin: center;
+      /* Changed from left center */
       opacity: 0;
-      transform: translateY(8px) scale(0.98);
+      transform: translateX(-8px) scale(0.98);
+      /* Changed from translateY to translateX */
     }
 
     /* Hover state for all .spawn buttons */
@@ -1257,54 +1300,35 @@
       toggle.addEventListener('click', (e) => {
         e.stopPropagation();
 
-        // If we're opening, ensure we clear any closing state
-        if (!menu.classList.contains('visible')) {
-          menu.classList.remove('closing');
-          menu.classList.add('visible');
+        // Hide the Components button
+        toggle.style.display = 'none';
 
-          // Apply staggered animation delays to visible items, and observe the rest so they animate when scrolled into view
-          const list = items();
-          const menuRect = menu.getBoundingClientRect();
-          list.forEach((el, i) => {
-            el.dataset.idx = i;
-            // ensure baseline hidden state
-            hideElement(el);
-            const rect = el.getBoundingClientRect();
-            const inView = !(rect.bottom < menuRect.top || rect.top > menuRect.bottom);
-            if (inView) {
-              // animate visible items with stagger
-              showElement(el, i * 60);
-            } else {
-              // observe so items animate when scrolled into view
-              io.observe(el);
-            }
-          });
+        // Show the menu
+        menu.classList.remove('closing');
+        menu.classList.add('visible');
 
-        } else {
-          // closing: remove animation classes and then hide shortly after so animation looks snappy
-          menu.classList.remove('visible');
-          menu.classList.add('closing');
-          const list = items();
-          list.forEach((el) => {
-            // hide immediately
-            hideElement(el);
-            try { io.unobserve(el); } catch (e) { }
-          });
-          // hide after a short timeout to avoid layout flicker
-          setTimeout(() => {
-            menu.classList.remove('closing');
-            // re-observe items so next open will animate when they enter view again
-            items().forEach(el => { try { io.observe(el); } catch (e) { } });
-          }, 180);
-        }
+        // Apply staggered animation delays to visible items
+        const list = items();
+        const menuRect = menu.getBoundingClientRect();
+        list.forEach((el, i) => {
+          el.dataset.idx = i;
+          hideElement(el);
+          const rect = el.getBoundingClientRect();
+          const inView = !(rect.bottom < menuRect.top || rect.top > menuRect.bottom);
+          if (inView) {
+            showElement(el, i * 60);
+          } else {
+            io.observe(el);
+          }
+        });
 
-        menu.setAttribute('aria-hidden', menu.classList.contains('visible') ? 'false' : 'true');
+        menu.setAttribute('aria-hidden', 'false');
       });
 
-      // Close the menu when clicking outside
-      document.addEventListener('click', () => {
-        if (menu.classList.contains('visible')) {
-          // perform the same close sequence as above
+      // Add click handlers to all spawn buttons to hide menu and show button again
+      document.querySelectorAll('#components-menu .spawn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          // Hide the menu
           menu.classList.remove('visible');
           menu.classList.add('closing');
           const list = items();
@@ -1312,19 +1336,52 @@
             hideElement(el);
             try { io.unobserve(el); } catch (e) { }
           });
+
+          // Show the Components button again after animation
           setTimeout(() => {
             menu.classList.remove('closing');
-            menu.setAttribute('aria-hidden', 'true');
-            items().forEach(el => { try { io.observe(el); } catch (e) { } });
-          }, 180);
-        }
+            toggle.style.opacity = '0';
+            toggle.style.display = 'flex';
+            setTimeout(() => {
+              toggle.style.opacity = '1';
+            }, 10);
+          }, 300);
+
+          menu.setAttribute('aria-hidden', 'true');
+        });
       });
 
       // Prevent clicks inside the menu from closing it
       menu.addEventListener('click', (e) => {
         e.stopPropagation();
       });
+      // Close menu and show button on right-click anywhere
+      document.addEventListener('click', (e) => {
+        if (menu.classList.contains('visible')) {
+          e.preventDefault(); // Prevent context menu from showing
 
+          // Hide the menu
+          menu.classList.remove('visible');
+          menu.classList.add('closing');
+          const list = items();
+          list.forEach((el) => {
+            hideElement(el);
+            try { io.unobserve(el); } catch (e) { }
+          });
+
+          // Show the Components button again after animation
+          setTimeout(() => {
+            menu.classList.remove('closing');
+            toggle.style.opacity = '0';
+            toggle.style.display = 'flex';
+            setTimeout(() => {
+              toggle.style.opacity = '1';
+            }, 10);
+          }, 300);
+
+          menu.setAttribute('aria-hidden', 'true');
+        }
+      });
       // Color picker dropdown animation (same as components menu)
       const colorToggle = document.getElementById('colorPickerToggle');
       const colorMenu = document.getElementById('colorPickerMenu');
