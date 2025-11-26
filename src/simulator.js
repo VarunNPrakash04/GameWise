@@ -15,12 +15,28 @@ export class CircuitSimulator {
     }
 
     /**
+ * Update circuit data (call this after loading a file)
+ */
+    updateCircuitData(components, wires) {
+        this.components = components;
+        this.wires = wires;
+        console.log('🔄 Simulator updated:', {
+            components: this.components.length,
+            wires: this.wires.length
+        });
+    }
+
+    /**
      * Verify code and circuit with backend
      */
     async verify(code) {
         try {
             // Extract circuit data
             const circuitData = this.extractCircuitData();
+
+            console.log('🔍 Extracted circuit data:', circuitData);
+            console.log('🔍 Wires array length:', this.wires.length);
+            console.log('🔍 Components array length:', this.components.length);
 
             console.log('📤 Sending verification request...');
 
@@ -191,10 +207,11 @@ export class CircuitSimulator {
             return data;
         });
 
-        const wiresData = this.wires.map(wire => ({
-            from: wire.userData.fromPin,
-            to: wire.userData.toPin,
-            color: wire.userData.color
+        // Use wireConnections directly since it already has the metadata we need
+        const wiresData = this.wires.map(wc => ({
+            from: wc.from,
+            to: wc.to,
+            color: wc.color
         }));
 
         return {
@@ -210,17 +227,17 @@ export class CircuitSimulator {
         for (const component of this.components) {
             if (component.userData.type !== 'LED') continue;
 
-            // Check if LED is connected to this pin via wires
             const isConnected = this.wires.some(wire => {
                 const ledPins = component.userData.snappedPins;
                 if (!ledPins) return false;
 
                 // Check if wire connects Arduino pin to LED pin
+                // wireConnections uses 'from' and 'to', not 'userData.fromPin'
                 return (
-                    (wire.userData.fromPin === pinName &&
-                        (wire.userData.toPin === ledPins.long || wire.userData.toPin === ledPins.short)) ||
-                    (wire.userData.toPin === pinName &&
-                        (wire.userData.fromPin === ledPins.long || wire.userData.fromPin === ledPins.short))
+                    (wire.from === pinName &&
+                        (wire.to === ledPins.long || wire.to === ledPins.short)) ||
+                    (wire.to === pinName &&
+                        (wire.from === ledPins.long || wire.from === ledPins.short))
                 );
             });
 
@@ -243,9 +260,10 @@ export class CircuitSimulator {
                 if (!buttonPins || !Array.isArray(buttonPins)) return false;
 
                 // Check if wire connects Arduino pin to any button pin
+                // wireConnections uses 'from' and 'to', not 'userData.fromPin'
                 return (
-                    (wire.userData.fromPin === pinName && buttonPins.includes(wire.userData.toPin)) ||
-                    (wire.userData.toPin === pinName && buttonPins.includes(wire.userData.fromPin))
+                    (wire.from === pinName && buttonPins.includes(wire.to)) ||
+                    (wire.to === pinName && buttonPins.includes(wire.from))
                 );
             });
 

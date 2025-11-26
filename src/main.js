@@ -478,6 +478,9 @@ const WIRE_TUBULAR_SEGMENTS = 96;
 let currentMouseX = 0;
 let currentMouseY = 0;
 
+window.components = components;
+window.wireConnections = wireConnections;
+
 // Update mouse position tracking
 window.addEventListener('mousemove', (e) => {
     currentMouseX = e.clientX;
@@ -3394,9 +3397,11 @@ function loadStateFromLocalStorage() {
                             });
 
                             if (state.wireConnections) {
-                                wireConnections = state.wireConnections;
+                                // Clear and repopulate without breaking reference
+                                wireConnections.length = 0;
+                                state.wireConnections.forEach(wc => wireConnections.push(wc));
+                                console.log('✅ Wire connections restored:', wireConnections.length);
                             }
-                            console.log('✅ Wires restored');
                         }
                     }, 800);
                 });
@@ -3638,9 +3643,11 @@ initMenuBar(
                             });
 
                             if (state.wireConnections) {
-                                wireConnections = state.wireConnections;
+                                // Clear and repopulate without breaking reference
+                                wireConnections.length = 0;
+                                state.wireConnections.forEach(wc => wireConnections.push(wc));
+                                console.log('✅ Wire connections restored:', wireConnections.length);
                             }
-                            console.log('✅ Wires restored');
                         }
                     }, 800);
                 });
@@ -3723,6 +3730,13 @@ initMenuBar(
             };
             setTimeout(trySetCode, 1000);
         }
+        // Update window references after loading
+        window.components = components;
+        window.wireConnections = wireConnections;
+        console.log('🔄 Window references updated:', {
+            components: window.components.length,
+            wireConnections: window.wireConnections.length
+        });
     },
     // Clear callback
     () => {
