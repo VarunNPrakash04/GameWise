@@ -146,6 +146,21 @@
       box-shadow: 5px 0 15px rgba(19, 85, 226, 0.5);
     }
 
+    #moveBoardBtn.lock-mode {
+      background: #ff4444 !important;
+    }
+
+    #moveBoardBtn.lock-mode:hover {
+      background: #ff6666 !important;
+    }
+
+    #moveBoardBtn.lock-mode::before {
+      background: linear-gradient(45deg,
+          #ff6666, #ff4444, #ff0000, #ff6666,
+          #ff4444, #ff0000, #ff6666);
+      background-size: 400% 400%;
+    }
+
     /* Splash Screen */
     #splashScreen {
       position: fixed;
