@@ -611,9 +611,9 @@ moveBoardBtn.addEventListener("click", () => {
     console.log("Move Mode:", breadboardMoveMode);
 
     if (breadboardMoveMode) {
-        moveBoardBtn.textContent = "Lock Board";
+        moveBoardBtn.textContent = "Lock Breadboard?";
         moveBoardBtn.classList.add("active");
-        moveBoardBtn.style.background = "#0066ff";
+        moveBoardBtn.classList.add("lock-mode");
 
         // Deselect everything else
         deselectComponent();
@@ -632,9 +632,9 @@ moveBoardBtn.addEventListener("click", () => {
         console.log("🔒 Camera locked - Move Board mode ON");
         // Enable rotation
     } else {
-        moveBoardBtn.textContent = "Move Board";
+        moveBoardBtn.textContent = "Move Breadboard";
         moveBoardBtn.classList.remove("active");
-        moveBoardBtn.style.background = "#333";
+        moveBoardBtn.classList.remove("lock-mode");
 
         // Stop dragging
         draggingComponent = null;

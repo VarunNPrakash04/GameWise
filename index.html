@@ -12,11 +12,15 @@
   <link rel="stylesheet" href="/src/colorDropdown.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap"
     rel="stylesheet">
   <style>
     body {
       margin: 0;
+      padding: 0;
+      font-family: 'Rajdhani', sans-serif;
+      /* Add this */
       overflow: hidden;
     }
 
@@ -140,6 +144,21 @@
       /* Stay blue on hover */
       transform: translateX(5px);
       box-shadow: 5px 0 15px rgba(19, 85, 226, 0.5);
+    }
+
+    #moveBoardBtn.lock-mode {
+      background: #ff4444 !important;
+    }
+
+    #moveBoardBtn.lock-mode:hover {
+      background: #ff6666 !important;
+    }
+
+    #moveBoardBtn.lock-mode::before {
+      background: linear-gradient(45deg,
+          #ff6666, #ff4444, #ff0000, #ff6666,
+          #ff4444, #ff0000, #ff6666);
+      background-size: 400% 400%;
     }
 
     /* Splash Screen */
@@ -1196,25 +1215,71 @@
       transform: translateY(0) scale(1);
     }
 
-    /* Connection Info Console */
+    /* Connection Info Console - Game Boy inspired 3D look */
     .connection-console {
       position: fixed;
-      bottom: 0;
+      bottom: 0px;
       right: 20px;
       width: 400px;
       height: 50px;
-      background: rgba(30, 30, 30, 0.95);
-      border: 1px solid #444;
-      border-radius: 8px 8px 0 0;
+      background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+      border: 3px solid #0a0a0a;
+      border-radius: 12px 12px 0 0;
       z-index: 9999;
-      transition: height 0.3s ease;
+      transition: height 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      will-change: height;
+      transform: translateZ(0);
       display: flex;
       flex-direction: column;
-      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+
+      /* 3D depth effect */
+      box-shadow:
+        0 -8px 32px rgba(0, 0, 0, 0.8),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+
+      /* Subtle outer glow */
+      filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.15));
+    }
+
+    .connection-content,
+    .connection-log {
+      transition: opacity 0.3s ease;
+    }
+
+    .connection-console:not(.open) .connection-content {
+      opacity: 0;
+    }
+
+    .connection-console.open .connection-content {
+      opacity: 1;
+      transition-delay: 0.2s;
+    }
+
+    .connection-console::before {
+      content: '';
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      right: 8px;
+      height: 40%;
+      background: linear-gradient(180deg,
+          rgba(255, 255, 255, 0.08) 0%,
+          transparent 100%);
+      border-radius: 8px 8px 0 0;
+      pointer-events: none;
+      z-index: 1;
     }
 
     .connection-console.open {
       height: 400px;
+      box-shadow:
+        0 -12px 48px rgba(0, 0, 0, 0.9),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+      filter: drop-shadow(0 0 30px rgba(0, 217, 255, 0.2));
     }
 
     .connection-header {
@@ -1222,17 +1287,24 @@
       justify-content: space-between;
       align-items: center;
       padding: 12px 16px;
-      background: #1a1a1a;
-      border-bottom: 1px solid #444;
+      background: linear-gradient(180deg, #2d2d2d 0%, #1f1f1f 100%);
+      border-bottom: 2px solid #0a0a0a;
       cursor: pointer;
       user-select: none;
       border-radius: 8px 8px 0 0;
+      position: relative;
+      z-index: 2;
+
+      /* Inner shadow for depth */
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.3);
     }
 
     .connection-header span {
       color: #fff;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 18px;
     }
 
     .connection-toggle-btn {
@@ -1893,7 +1965,7 @@
       <!-- Connection Info Console -->
       <div id="connectionInfoConsole" class="connection-console">
         <div class="connection-header">
-          <span>📋 Connection Info</span>
+          <span>Connection Information</span>
           <button id="connectionToggleBtn" class="connection-toggle-btn">▲</button>
         </div>
         <div id="connectionContent" class="connection-content">
