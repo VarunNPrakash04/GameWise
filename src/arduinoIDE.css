@@ -260,9 +260,10 @@
     text-orientation: mixed;
 
     /* Triangle shape using clip-path */
-    clip-path: polygon(100% 0%, 0% 50%, 100% 100%);
+    border-radius: 70px 0 0 70px;
+    clip-path: none;
 
-    box-shadow: -3px 0 10px rgba(19, 85, 226, 0.3);
+    filter: drop-shadow(-5px 0 10px rgba(19, 85, 226, 0.6)) drop-shadow(0 0 15px rgba(19, 85, 226, 0.4)) !important;
 
     /* Center the text */
     display: flex;
@@ -274,7 +275,7 @@
 #ide-toggle-btn:hover {
     background: #aaaaaa;
     transform: translateY(-50%) translateX(-5px);
-    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.4);
+    filter: drop-shadow(-8px 0 15px rgba(19, 85, 226, 0.8)) drop-shadow(0 0 20px rgba(19, 85, 226, 0.6)) !important;
 }
 
 #ide-toggle-btn.ide-open {
