@@ -140,3 +140,40 @@ function panCamera(direction, controls, camera, speed) {
         ease: 'power2.out'
     });
 }
+
+/**
+ * Setup keyboard arrow keys to control camera panning
+ */
+export function setupKeyboardArrows(controls, camera) {
+    const panSpeed = 0.5; // Same speed as button clicks
+
+    window.addEventListener('keydown', (e) => {
+        // Check if any input field is focused - don't pan if typing
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+            return; // Don't pan while typing in input fields
+        }
+
+        // Map arrow keys to directions
+        switch (e.key) {
+            case 'ArrowUp':
+                e.preventDefault(); // Prevent page scroll
+                panCamera('up', controls, camera, panSpeed);
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                panCamera('down', controls, camera, panSpeed);
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                panCamera('left', controls, camera, panSpeed);
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                panCamera('right', controls, camera, panSpeed);
+                break;
+        }
+    });
+
+    console.log('✅ Keyboard arrow controls enabled');
+}

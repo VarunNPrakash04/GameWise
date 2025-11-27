@@ -7,7 +7,7 @@ import { colorDropdown } from './colorDropdown.js';
 import { initMenuBar, setProjectName } from './menuBar.js';
 import { showDeleteMenu, hideDeleteMenu } from './componentDeletion.js';
 import { animateComponentSpawn } from './buttonAnimation.js';
-import { createCameraArrows } from './cameraControls.js';
+import { createCameraArrows, setupKeyboardArrows } from './cameraControls.js';
 import { ledColorDropdown } from './ledColorDropdown.js';
 import { initButtonAnimation } from './buttonAnimation.js';
 import {
@@ -445,6 +445,7 @@ controls.minDistance = 1.2;
 controls.maxDistance = 100;
 // Create camera control arrows
 createCameraArrows(controls, camera);
+setupKeyboardArrows(controls, camera);
 // LIGHTING SETUP - Material Preview Mode (Blender-style)
 // Strong hemisphere light for even, environment-based lighting (like Blender's Material Preview)
 // Sky color (top) and ground color (bottom) - simulating studio environment with warm tones
@@ -4265,7 +4266,7 @@ function handleComponentSnap() {
 
 function showModalError(message) {
     modalError.textContent = message;
-modalError.style.display = 'block';
+    modalError.style.display = 'block';
 }
 
 function manualSnapLED(led, anodePin, cathodePin) {
