@@ -153,11 +153,12 @@ export class CircuitSimulator {
                             ledBulb = child;
                             if (shouldGlow) {
                                 // LED ON: Opaque warm red with glow
-                                child.material.emissive = new THREE.Color(0xcc0000);
+                                const ledColor = window.selectedLEDColor || 0xcc0000;
+                                child.material.emissive = new THREE.Color(ledColor);
                                 child.material.emissiveIntensity = 4;
                                 child.material.opacity = 1.0;
                                 child.material.transparent = true;
-                                child.material.color = new THREE.Color(0xcc0000);
+                                child.material.color = new THREE.Color(ledColor);
                             } else {
                                 // LED OFF: Transparent/clear glass look
                                 child.material.emissive = new THREE.Color(0x000000);
@@ -178,7 +179,8 @@ export class CircuitSimulator {
                         }
 
                         // Create new point light at bulb position
-                        const pointLight = new THREE.PointLight(0xcc0000, 2, 0.5);
+                        const ledColor = window.selectedLEDColor || 0xcc0000;
+                        const pointLight = new THREE.PointLight(ledColor, 2, 0.5);
                         pointLight.position.copy(ledBulb.position);
                         comp.add(pointLight);
                         comp.userData.ledLight = pointLight;
@@ -282,8 +284,9 @@ export class CircuitSimulator {
                 ledBulb = child;
                 if (shouldGlow) {
                     // Make LED glow with warmer red
-                    child.material.color = new THREE.Color(0xcc0000);
-                    child.material.emissive = new THREE.Color(0xcc0000);
+                    const ledColor = window.selectedLEDColor || 0xcc0000;
+                    child.material.color = new THREE.Color(ledColor);
+                    child.material.emissive = new THREE.Color(ledColor);
                     child.material.emissiveIntensity = (brightness / 255) * 4;
                     child.material.opacity = 1.0;
                     child.material.transparent = true;
@@ -304,7 +307,8 @@ export class CircuitSimulator {
             if (led.userData.ledLight) {
                 led.remove(led.userData.ledLight);
             }
-            const pointLight = new THREE.PointLight(0xcc0000, (brightness / 255) * 2, 0.5);
+            const ledColor = window.selectedLEDColor || 0xcc0000;
+            const pointLight = new THREE.PointLight(ledColor, (brightness / 255) * 2, 0.5);
             pointLight.position.copy(ledBulb.position);
             led.add(pointLight);
             led.userData.ledLight = pointLight;

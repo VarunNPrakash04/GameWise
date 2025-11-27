@@ -8,6 +8,7 @@ import { initMenuBar, setProjectName } from './menuBar.js';
 import { showDeleteMenu, hideDeleteMenu } from './componentDeletion.js';
 import { animateComponentSpawn } from './buttonAnimation.js';
 import { createCameraArrows } from './cameraControls.js';
+import { ledColorDropdown } from './ledColorDropdown.js';
 import { initButtonAnimation } from './buttonAnimation.js';
 import {
     createBreadboardIcon,
@@ -34,7 +35,8 @@ const gameWiseText = document.getElementById('gameWiseText');
 let splashTimeout = null;
 let splashSkipped = false;
 let shuffleInstance = null;
-
+// Initialize default LED color
+window.selectedLEDColor = 0xcc0000; // Red by default
 function hideSplash() {
     console.log('🔍 hideSplash() called, splashSkipped =', splashSkipped);
 
@@ -1453,7 +1455,55 @@ window.addEventListener('pointerdown', (e) => {
                     // Don't set draggingComponent, so it won't move
                     return;
                 } else if (isRightClick) {
-                    // Right-click: Allow dragging
+                    // Right-click: Check if button is snapped before allowing drag
+                    if (rootComponent.userData.snappedPins) {
+                        showMoveConfirmation(
+                            'BUTTON',
+                            () => {
+                                // User confirmed - allow movement
+                                rightMouseDown = true;
+                                buttonBeingDragged = rootComponent;
+                                draggingComponent = rootComponent;
+
+                                // Clear old pin highlights
+                                const oldSnappedPins = rootComponent.userData.snappedPins;
+                                pinObjects.forEach(pin => {
+                                    if (oldSnappedPins.includes(pin.name)) {
+                                        if (pin.children && pin.children[1]) {
+                                            const hasWire = wires.some(w =>
+                                                w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+                                            );
+                                            if (!hasWire) {
+                                                pin.children[1].material.visible = false;
+                                            }
+                                        }
+                                    }
+                                });
+
+                                // Clear the snapped pins reference
+                                delete rootComponent.userData.snappedPins;
+
+                                // Setup dragging plane
+                                plane.setFromNormalAndCoplanarPoint(
+                                    camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+                                    rootComponent.position
+                                );
+                                const hitPoint = compHit.point;
+                                planeIntersect.copy(hitPoint);
+                                offset.copy(rootComponent.position).sub(planeIntersect);
+                                controls.enabled = false;
+
+                                console.log("🖱️ Right-click on button: Drag mode enabled (after confirmation)");
+                            },
+                            () => {
+                                // User cancelled - don't allow movement
+                                console.log('❌ Button movement cancelled');
+                            }
+                        );
+                        return;
+                    }
+
+                    // Not snapped - allow drag immediately
                     rightMouseDown = true;
                     buttonBeingDragged = rootComponent;
                     draggingComponent = rootComponent;
@@ -1463,20 +1513,65 @@ window.addEventListener('pointerdown', (e) => {
                     return;
                 }
             } else {
-                // For non-button components, always allow dragging (existing behavior)
+                // For non-button components, check if LED is already snapped
+                if (rootComponent.userData.type === 'LED' && rootComponent.userData.snappedPins) {
+
+                    // Show confirmation modal
+                    showMoveConfirmation(
+                        'LED',
+                        () => {
+                            // User confirmed - allow movement
+                            draggingComponent = rootComponent;
+                            highlightComponent(selectedComponent, false);
+
+                            // Clear old pin highlights
+                            const oldSnappedPins = rootComponent.userData.snappedPins;
+                            pinObjects.forEach(pin => {
+                                if (pin.name === oldSnappedPins.long || pin.name === oldSnappedPins.short) {
+                                    if (pin.children && pin.children[1]) {
+                                        const hasWire = wires.some(w =>
+                                            w.userData.fromPinObj === pin || w.userData.toPinObj === pin
+                                        );
+                                        if (!hasWire) {
+                                            pin.children[1].material.visible = false;
+                                        }
+                                    }
+                                }
+                            });
+
+                            // Clear the snapped pins reference
+                            delete rootComponent.userData.snappedPins;
+
+                            // Setup dragging plane
+                            plane.setFromNormalAndCoplanarPoint(
+                                camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
+                                rootComponent.position
+                            );
+                            const hitPoint = compHit.point;
+                            planeIntersect.copy(hitPoint);
+                            offset.copy(rootComponent.position).sub(planeIntersect);
+                            controls.enabled = false;
+                        },
+                        () => {
+                            // User cancelled - don't allow movement
+                            console.log('❌ LED movement cancelled');
+                        }
+                    );
+                    return; // Don't start drag until confirmed
+                }
+
+                // For other components or unsnapped LED, allow dragging immediately
                 draggingComponent = rootComponent;
             }
 
             highlightComponent(selectedComponent, false);
 
-            // Clear old LED pin highlights when picking up LED
+            // Clear old LED pin highlights when picking up LED (for unsnapped LEDs)
             if (rootComponent.userData.type === "LED" && rootComponent.userData.snappedPins) {
                 const oldSnappedPins = rootComponent.userData.snappedPins;
-                // Find and clear highlights from old pins
                 pinObjects.forEach(pin => {
                     if (pin.name === oldSnappedPins.long || pin.name === oldSnappedPins.short) {
                         if (pin.children && pin.children[1]) {
-                            // Only hide if no wires connected
                             const hasWire = wires.some(w =>
                                 w.userData.fromPinObj === pin || w.userData.toPinObj === pin
                             );
@@ -1486,27 +1581,6 @@ window.addEventListener('pointerdown', (e) => {
                         }
                     }
                 });
-                // Clear the snapped pins reference
-                delete rootComponent.userData.snappedPins;
-            }
-            // Clear old BUTTON pin highlights when picking up BUTTON
-            if (rootComponent.userData.type === "BUTTON" && rootComponent.userData.snappedPins) {
-                const oldSnappedPins = rootComponent.userData.snappedPins;
-                // Find and clear highlights from old pins
-                pinObjects.forEach(pin => {
-                    if (oldSnappedPins.includes(pin.name)) {
-                        if (pin.children && pin.children[1]) {
-                            // Only hide if no wires connected
-                            const hasWire = wires.some(w =>
-                                w.userData.fromPinObj === pin || w.userData.toPinObj === pin
-                            );
-                            if (!hasWire) {
-                                pin.children[1].material.visible = false;
-                            }
-                        }
-                    }
-                });
-                // Clear the snapped pins reference
                 delete rootComponent.userData.snappedPins;
             }
 

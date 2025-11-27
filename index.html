@@ -637,6 +637,34 @@
       }
     }
 
+    /* Move Confirmation Modal - matches shortcuts modal style */
+    #moveConfirmModal .modal-content {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    #moveConfirmModal h2 {
+      font-family: 'Rajdhani', sans-serif;
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    }
+
+    #moveConfirmModal p {
+      font-family: 'Rajdhani', sans-serif;
+    }
+
+    #moveConfirmModal .modal-btn {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+    }
+
     #components-toggle:hover::before,
     #moveBoardBtn:hover::before,
     .color-dropdown-toggle:hover::before,
@@ -1883,6 +1911,18 @@
           // Add click handlers to all spawn buttons to hide menu and show button again
           document.querySelectorAll('#components-menu .spawn').forEach(btn => {
             btn.addEventListener('click', () => {
+              // Check if this is an LED button - show LED color picker
+              const componentType = btn.dataset.type;
+              if (componentType === 'LED') {
+                // Import and show LED color dropdown
+                import('./src/ledColorDropdown.js').then(module => {
+                  const ledCount = window.components ? window.components.filter(c => c.userData.type === 'LED').length : 0;
+                  if (ledCount === 0) {
+                    module.ledColorDropdown.show();
+                  }
+                });
+              }
+
               // Hide the menu
               menu.classList.remove('visible');
               menu.classList.add('closing');
@@ -1905,7 +1945,6 @@
               menu.setAttribute('aria-hidden', 'true');
             });
           });
-
           // Prevent clicks inside the menu from closing it
           menu.addEventListener('click', (e) => {
             e.stopPropagation();

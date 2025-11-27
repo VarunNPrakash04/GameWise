@@ -189,3 +189,40 @@
 .color-option[data-value="0x000000"]:hover {
     box-shadow: 0 0 20px rgba(128, 128, 128, 0.6), 0 8px 28px rgba(80, 100, 255, 0.12);
 }
+
+/* LED Color option underglow */
+#ledColorDropdownMenu .color-option {
+    position: relative;
+    overflow: visible;
+}
+
+#ledColorDropdownMenu .color-option::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    background: inherit;
+    filter: blur(8px);
+    opacity: 0;
+    z-index: -1;
+    border-radius: 8px;
+    transition: opacity 0.3s ease;
+}
+
+#ledColorDropdownMenu .color-option:hover::before {
+    opacity: 0.6;
+}
+
+#ledColorDropdownMenu .color-option[data-name="Red"]::before {
+    background: radial-gradient(circle, rgba(204, 0, 0, 0.4), transparent);
+}
+
+#ledColorDropdownMenu .color-option[data-name="Green"]::before {
+    background: radial-gradient(circle, rgba(0, 204, 0, 0.4), transparent);
+}
+
+#ledColorDropdownMenu .color-option[data-name="Blue"]::before {
+    background: radial-gradient(circle, rgba(0, 0, 204, 0.4), transparent);
+}
