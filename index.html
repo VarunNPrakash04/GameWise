@@ -604,9 +604,29 @@
       overflow: visible;
     }
 
+    /* Electric border for all buttons - rectangular glow */
     #components-toggle::before,
     #moveBoardBtn::before,
-    .color-dropdown-toggle::before,
+    .color-dropdown-toggle::before {
+      content: '';
+      position: absolute;
+      top: -0.3px;
+      left: -0.3px;
+      right: -0.3px;
+      bottom: -0.3px;
+      background: linear-gradient(45deg,
+          #00f0ff, #00d4ff, #0080ff, #00f0ff,
+          #00d4ff, #0080ff, #00f0ff);
+      background-size: 400% 400%;
+      border-radius: 8px;
+      /* Rectangular with slight rounding */
+      z-index: -1;
+      animation: electricBorder 3s ease infinite;
+      filter: blur(2px);
+      opacity: 0.8;
+    }
+
+    /* CODE button - semicircular glow */
     #ide-toggle-btn::before {
       content: '';
       position: absolute;
@@ -619,6 +639,7 @@
           #00d4ff, #0080ff, #00f0ff);
       background-size: 400% 400%;
       border-radius: 70px 0 0 70px;
+      /* Semicircular for CODE button */
       z-index: -1;
       animation: electricBorder 3s ease infinite;
       filter: blur(2px);
