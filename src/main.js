@@ -219,6 +219,17 @@ function createLEDPlaceholder() {
                 if (child.material.length === 1) {
                     child.material = child.material[0];
                 }
+
+                // Set LED_Bulb to transparent (OFF state) when first loaded
+                if (child.name === 'LED_Bulb') {
+                    child.material.color = new THREE.Color(0xffffff);
+                    child.material.emissive = new THREE.Color(0x000000);
+                    child.material.emissiveIntensity = 0;
+                    child.material.opacity = 0.2;
+                    child.material.transparent = true;
+                    child.material.needsUpdate = true;
+                    console.log('✅ LED_Bulb initialized as transparent');
+                }
             }
         });
 
