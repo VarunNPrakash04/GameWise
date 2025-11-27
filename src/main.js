@@ -611,9 +611,9 @@ moveBoardBtn.addEventListener("click", () => {
     console.log("Move Mode:", breadboardMoveMode);
 
     if (breadboardMoveMode) {
-        moveBoardBtn.textContent = "Lock Breadboard?";
+        moveBoardBtn.textContent = "Lock Board";
         moveBoardBtn.classList.add("active");
-        moveBoardBtn.classList.add("lock-mode");
+        moveBoardBtn.style.background = "#0066ff";
 
         // Deselect everything else
         deselectComponent();
@@ -632,9 +632,9 @@ moveBoardBtn.addEventListener("click", () => {
         console.log("🔒 Camera locked - Move Board mode ON");
         // Enable rotation
     } else {
-        moveBoardBtn.textContent = "Move Breadboard";
+        moveBoardBtn.textContent = "Move Board";
         moveBoardBtn.classList.remove("active");
-        moveBoardBtn.classList.remove("lock-mode");
+        moveBoardBtn.style.background = "#333";
 
         // Stop dragging
         draggingComponent = null;
@@ -4154,4 +4154,4 @@ function manualSnapButton(button, pins) {
         `📍 <span class="component-name">BUTTON</span> manually snapped to pins: ${pinNames}`,
         'snap'
     );
-}
+} 
