@@ -716,6 +716,19 @@
       transform: scale(0.95);
     }
 
+    /* Move Breadboard button - red when locked */
+    #moveBoardBtn.locked {
+      background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%) !important;
+      color: white !important;
+      box-shadow: 0 4px 15px rgba(198, 40, 40, 0.4) !important;
+    }
+
+    #moveBoardBtn.locked::before {
+      background: linear-gradient(45deg,
+          #ff0000, #ff3333, #ff0000, #ff3333,
+          #ff0000, #ff3333, #ff0000) !important;
+    }
+
     .spawn::before {
       content: '';
       position: absolute;
@@ -2101,7 +2114,25 @@
                 });
               }
             });
-
+            // Move Breadboard button toggle
+            const moveBoardBtn = document.getElementById('moveBoardBtn');
+            if (moveBoardBtn) {
+              moveBoardBtn.addEventListener('click', () => {
+                if (moveBoardBtn.classList.contains('locked')) {
+                  // Unlock
+                  moveBoardBtn.classList.remove('locked');
+                  moveBoardBtn.textContent = 'Move Breadboard';
+                  window.breadboardMoveMode = false;
+                  console.log('🔓 Breadboard unlocked');
+                } else {
+                  // Lock
+                  moveBoardBtn.classList.add('locked');
+                  moveBoardBtn.textContent = 'Lock Breadboard?';
+                  window.breadboardMoveMode = true;
+                  console.log('🔒 Breadboard locked (move mode enabled)');
+                }
+              });
+            }
             // Handle color selection
             colorOptions.forEach(option => {
               option.addEventListener('click', (e) => {
@@ -2197,6 +2228,32 @@
             });
           }
         }, 500);
+
+        // Move Breadboard button toggle
+        setTimeout(() => {
+          const moveBoardBtn = document.getElementById('moveBoardBtn');
+          if (moveBoardBtn) {
+            moveBoardBtn.addEventListener('click', () => {
+              if (moveBoardBtn.classList.contains('locked')) {
+                // Unlock
+                moveBoardBtn.classList.remove('locked');
+                moveBoardBtn.textContent = 'Move Breadboard';
+                window.breadboardMoveMode = false;
+                console.log('🔓 Breadboard unlocked');
+              } else {
+                // Lock
+                moveBoardBtn.classList.add('locked');
+                moveBoardBtn.textContent = 'Lock Breadboard?';
+                window.breadboardMoveMode = true;
+                console.log('🔒 Breadboard locked (move mode enabled)');
+              }
+            });
+            console.log('✅ Move Breadboard button event listener attached');
+          } else {
+            console.error('❌ moveBoardBtn not found');
+          }
+        }, 500);
+
       </script>
 
       <!-- Connection Info Console -->
