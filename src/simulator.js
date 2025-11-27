@@ -150,6 +150,9 @@ export class CircuitSimulator {
                             child.material.needsUpdate = true;
                         }
                     });
+                    console.log(`💡 LED visual state updated: ${shouldGlow ? 'ON' : 'OFF'}`);
+                } else {
+                    console.warn('⚠️ LED found but not connected to powered pin:', comp.userData.snappedPins);
                 }
             }
         });
@@ -280,13 +283,15 @@ export class CircuitSimulator {
 
         // Handle TOGGLE behavior
         if (buttonStates.type === 'TOGGLE') {
-            // Toggle the LED state
-            if (!button.userData.toggleState) {
+            // Initialize toggle state on first press (don't flip yet)
+            if (button.userData.toggleState === undefined) {
                 button.userData.toggleState = buttonStates.initialState || 'LOW';
+                console.log(`🔘 Toggle initialized to: ${button.userData.toggleState}`);
+            } else {
+                // Flip the state on subsequent presses
+                button.userData.toggleState = button.userData.toggleState === 'HIGH' ? 'LOW' : 'HIGH';
+                console.log(`🔘 Toggle flipped to: ${button.userData.toggleState}`);
             }
-
-            // Flip the state
-            button.userData.toggleState = button.userData.toggleState === 'HIGH' ? 'LOW' : 'HIGH';
 
             // Apply to LED
             const shouldGlow = button.userData.toggleState === 'HIGH';
@@ -314,7 +319,16 @@ export class CircuitSimulator {
         if (!this.isRunning) return;
 
         const buttonStates = button.userData.buttonStates;
-        if (!buttonStates || !buttonStates.released) return;
+        if (!buttonStates) return;
+
+        // Skip release handling for TOGGLE buttons - they maintain their state
+        if (buttonStates.type === 'TOGGLE') {
+            console.log('🔘 Button released (TOGGLE - state maintained)');
+            return;
+        }
+
+        // Only handle release for PRESS/RELEASE type buttons
+        if (!buttonStates.released) return;
 
         console.log('🔘 Button released!');
 
