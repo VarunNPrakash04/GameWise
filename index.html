@@ -1536,6 +1536,56 @@
       transition: all 0.2s ease;
     }
 
+    /* Loading animation */
+    .terminal-loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #4fc3f7;
+    }
+
+    .loading-text {
+      font-weight: 500;
+    }
+
+    .loading-dots {
+      display: inline-flex;
+      gap: 2px;
+    }
+
+    .loading-dots .dot {
+      animation: loadingDot 1.4s infinite;
+      opacity: 0;
+    }
+
+    .loading-dots .dot:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .loading-dots .dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .loading-dots .dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes loadingDot {
+
+      0%,
+      20% {
+        opacity: 0;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+      }
+    }
+
     .connection-tab:hover {
       background: rgba(70, 70, 70, 0.7);
       color: #fff;

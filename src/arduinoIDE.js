@@ -168,22 +168,21 @@ function setupEventListeners() {
     document.getElementById('ide-verify-btn').addEventListener('click', async () => {
         clearTerminal();
         addTerminalLine('Verifying code...', 'info');
-        isCodeVerified = false; // Reset verification status
+        showLoadingAnimation('🤖 HOLD ON'); // ✨ NEW
+        isCodeVerified = false;
 
         if (!editorInstance) {
+            hideLoadingAnimation(); // ✨ NEW
             addTerminalLine('ERROR: Editor not initialized', 'error');
             return;
         }
 
-        // Get code from editor
         const code = editorInstance.getValue();
-
-        // Show compiling message
         addTerminalLine('Compiling sketch...', 'info');
 
         try {
-            // Call backend verification
             const result = await simulator.verify(code);
+            hideLoadingAnimation(); // ✨ NEW
 
             if (!result.syntaxValid) {
                 addTerminalLine('❌ Compilation failed!', 'error');
@@ -195,7 +194,7 @@ function setupEventListeners() {
             }
 
             addTerminalLine('✅ Compilation successful!', 'success');
-            isCodeVerified = true; // Mark as verified
+            isCodeVerified = true;
 
             if (!result.circuitValid) {
                 addTerminalLine('', 'info');
@@ -211,6 +210,7 @@ function setupEventListeners() {
             addTerminalLine(result.message || 'Ready to upload!', 'info');
 
         } catch (error) {
+            hideLoadingAnimation(); // ✨ NEW
             addTerminalLine('❌ Verification failed!', 'error');
             addTerminalLine(`Error: ${error.message}`, 'error');
             addTerminalLine('', 'info');
@@ -221,7 +221,6 @@ function setupEventListeners() {
 
     // Upload button
     document.getElementById('ide-upload-btn').addEventListener('click', async () => {
-        // Check if code has been verified
         if (!isCodeVerified) {
             addTerminalLine('⚠️ Please verify code first before uploading!', 'warning');
             return;
@@ -229,13 +228,12 @@ function setupEventListeners() {
 
         clearTerminal();
         addTerminalLine('Uploading to board...', 'info');
+        showLoadingAnimation('🚀 Uploading to Arduino'); // ✨ NEW
 
         try {
-            // Get code again
             const code = editorInstance.getValue();
-
-            // Re-verify to get simulation data
             const result = await simulator.verify(code);
+            hideLoadingAnimation(); // ✨ NEW
 
             if (!result.syntaxValid) {
                 addTerminalLine('❌ Upload failed - code has errors!', 'error');
@@ -246,15 +244,14 @@ function setupEventListeners() {
             addTerminalLine('✅ Upload complete!', 'success');
             addTerminalLine('🎮 Simulation started!', 'success');
 
-            // Start simulation
             simulator.startSimulation(result.componentStates);
 
         } catch (error) {
+            hideLoadingAnimation(); // ✨ NEW
             addTerminalLine('❌ Upload failed!', 'error');
             addTerminalLine(`Error: ${error.message}`, 'error');
         }
     });
-
     // Clear button
     document.getElementById('ide-clear-btn').addEventListener('click', () => {
         if (editorInstance && confirm('Clear all code?')) {
@@ -359,6 +356,39 @@ function clearTerminal() {
 
     terminalOutput.innerHTML = '';
     addTerminalLine('Terminal cleared', 'info');
+}
+
+/**
+ * Show loading animation in terminal
+ */
+let loadingInterval = null;
+function showLoadingAnimation(message = 'Processing') {
+    const terminalOutput = document.getElementById('terminal-output');
+    if (!terminalOutput) return;
+
+    const loadingLine = document.createElement('div');
+    loadingLine.className = 'terminal-line terminal-loading';
+    loadingLine.id = 'loading-indicator';
+    loadingLine.innerHTML = `
+        <span class="loading-text">${message}</span>
+        <span class="loading-dots">
+            <span class="dot">.</span>
+            <span class="dot">.</span>
+            <span class="dot">.</span>
+        </span>
+    `;
+    terminalOutput.appendChild(loadingLine);
+    terminalOutput.scrollTop = terminalOutput.scrollHeight;
+}
+
+/**
+ * Hide loading animation
+ */
+function hideLoadingAnimation() {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    if (loadingIndicator) {
+        loadingIndicator.remove();
+    }
 }
 
 /**
