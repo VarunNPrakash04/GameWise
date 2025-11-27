@@ -1,0 +1,138 @@
+/* Menu Bar - Game Boy inspired 3D look */
+.menu-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%) !important;
+    border-bottom: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 10000;
+    font-family: 'Rajdhani', sans-serif !important;
+
+    /* 3D depth effect like Connection Info */
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+
+    /* Subtle glow */
+    filter: drop-shadow(0 2px 10px rgba(0, 217, 255, 0.1));
+}
+
+.menu-items {
+    display: flex;
+    gap: 4px;
+}
+
+.menu-item {
+    position: relative;
+    padding: 8px 40px;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    color: #e8eefc;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Rajdhani', sans-serif !important;
+    transition: all 0.2s ease;
+    min-width: 50px;
+    text-align: center;
+    /* 3D button effect */
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.menu-item:hover {
+    background: linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%);
+    transform: translateY(-1px);
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.menu-item:active {
+    transform: translateY(0);
+    box-shadow:
+        0 1px 4px rgba(0, 0, 0, 0.8),
+        inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    min-width: 220px;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border: 2px solid #0a0a0a;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    z-index: 10001;
+
+    /* Hidden by default */
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+
+    /* 3D depth */
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.9),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.dropdown-menu.active {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.menu-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+    color: #e8eefc;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    margin-bottom: 2px;
+}
+
+.menu-option:hover {
+    background: linear-gradient(90deg, rgba(100, 120, 255, 0.12), rgba(50, 60, 220, 0.08));
+    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(80, 100, 255, 0.12);
+}
+
+.shortcut {
+    color: #888;
+    font-size: 11px;
+    font-family: 'Rajdhani', sans-serif;
+}
+
+.menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+.project-name {
+    color: #00d9ff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Rajdhani', sans-serif;
+}

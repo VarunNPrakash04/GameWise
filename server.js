@@ -69,6 +69,64 @@ Breadboard tracing:
 • BB_B1 is in row 1 → A1–E1 connected → LED cathode in BB_D1 receives LOW
 → LED must glow (shouldGlow: true)
 
+**BUTTON BEHAVIOR:**
+
+If code has digitalRead() on a button pin with if statement:
+- Check what happens when button is pressed (digitalRead == LOW)
+- Check what happens when button is released (digitalRead == HIGH)
+- Return pressed/released states with what they control
+
+
+
+
+
+**TOGGLE BEHAVIOR (Button Click Toggles LED):**
+
+If code uses a variable to track button state and toggles LED:
+\`\`\`cpp
+bool ledState = false;
+bool lastButtonState = HIGH;
+
+void loop() {
+  bool buttonState = digitalRead(2);
+  if (buttonState == LOW && lastButtonState == HIGH) {
+    ledState = !ledState;
+    digitalWrite(13, ledState);
+  }
+  lastButtonState = buttonState;
+}
+\`\`\`
+
+**MUST RETURN:**
+\`\`\`json
+{
+  "BUTTON": {
+    "type": "TOGGLE",
+    "initialState": "LOW",
+    "target": {"LED": {"type": "STATIC"}}
+  }
+}
+
+**Example Button Code:**
+\`\`\`cpp
+if (digitalRead(2) == LOW) {
+  digitalWrite(13, HIGH);
+} else {
+  digitalWrite(13, LOW);
+}
+\`\`\`
+
+
+**MUST RETURN:**
+\`\`\`json
+{
+  "BUTTON": {
+    "pressed": {"LED": {"type": "STATIC", "state": "HIGH"}},
+    "released": {"LED": {"type": "STATIC", "state": "LOW"}}
+  }
+}
+\`\`\`
+
 -------------------------------------------------------------
 
 **Circuit Configuration:**
@@ -100,6 +158,10 @@ You MUST output ONLY this JSON, with no explanations, no markdown:
         {"state": "LOW", "duration": 1000}
       ],
       "repeat": true
+    },
+    "BUTTON": {
+      "pressed": {"LED": {"type": "STATIC", "state": "HIGH"}},
+      "released": {"LED": {"type": "STATIC", "state": "LOW"}},
     }
   }
 }

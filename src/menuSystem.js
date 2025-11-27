@@ -39,7 +39,14 @@ export class MenuSystem {
             e.stopPropagation();
             this.toggle();
         });
-
+        // Close button
+        const closeBtn = document.getElementById('components-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.close();
+            });
+        }
         // Close when clicking outside
         document.addEventListener('click', (e) => {
             if (this.isVisible &&

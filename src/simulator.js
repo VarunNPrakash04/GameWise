@@ -150,6 +150,9 @@ export class CircuitSimulator {
                             child.material.needsUpdate = true;
                         }
                     });
+                    console.log(`💡 LED visual state updated: ${shouldGlow ? 'ON' : 'OFF'}`);
+                } else {
+                    console.warn('⚠️ LED found but not connected to powered pin:', comp.userData.snappedPins);
                 }
             }
         });
@@ -273,23 +276,71 @@ export class CircuitSimulator {
     handleButtonPress(button) {
         if (!this.isRunning) return;
 
-        const action = button.userData.simulationAction;
-        if (!action) return;
+        const buttonStates = button.userData.buttonStates;
+        if (!buttonStates) return;
 
-        console.log('🔘 Button pressed! Action:', action.action);
+        console.log('🔘 Button pressed!');
 
-        if (action.action === 'TOGGLE') {
-            // Toggle target pin state
-            const currentState = this.pinStates[action.targetPin]?.state;
-            const newState = currentState === 'HIGH' ? 'LOW' : 'HIGH';
+        // Handle TOGGLE behavior
+        if (buttonStates.type === 'TOGGLE') {
+            // Initialize toggle state on first press (don't flip yet)
+            if (button.userData.toggleState === undefined) {
+                button.userData.toggleState = buttonStates.initialState || 'LOW';
+                console.log(`🔘 Toggle initialized to: ${button.userData.toggleState}`);
+            } else {
+                // Flip the state on subsequent presses
+                button.userData.toggleState = button.userData.toggleState === 'HIGH' ? 'LOW' : 'HIGH';
+                console.log(`🔘 Toggle flipped to: ${button.userData.toggleState}`);
+            }
 
-            this.pinStates[action.targetPin] = {
-                ...this.pinStates[action.targetPin],
-                state: newState
-            };
+            // Apply to LED
+            const shouldGlow = button.userData.toggleState === 'HIGH';
+            this.setLEDState(shouldGlow);
+            console.log(`💡 LED toggled → ${button.userData.toggleState}`);
+            return;
+        }
 
-            // Update connected LEDs
-            this.setLEDGlow(action.targetPin, newState === 'HIGH', 255);
+        // Handle PRESS/RELEASE behavior
+        if (buttonStates.pressed && buttonStates.pressed.LED) {
+            const ledConfig = buttonStates.pressed.LED;
+
+            if (ledConfig.type === 'STATIC') {
+                const shouldGlow = ledConfig.state === 'HIGH';
+                this.setLEDState(shouldGlow);
+                console.log(`💡 LED → ${ledConfig.state}`);
+            }
+        }
+    }
+
+    /**
+ * Handle button release (called from main.js mouseup handler)
+ */
+    handleButtonRelease(button) {
+        if (!this.isRunning) return;
+
+        const buttonStates = button.userData.buttonStates;
+        if (!buttonStates) return;
+
+        // Skip release handling for TOGGLE buttons - they maintain their state
+        if (buttonStates.type === 'TOGGLE') {
+            console.log('🔘 Button released (TOGGLE - state maintained)');
+            return;
+        }
+
+        // Only handle release for PRESS/RELEASE type buttons
+        if (!buttonStates.released) return;
+
+        console.log('🔘 Button released!');
+
+        // Apply released state
+        if (buttonStates.released.LED) {
+            const ledConfig = buttonStates.released.LED;
+
+            if (ledConfig.type === 'STATIC') {
+                const shouldGlow = ledConfig.state === 'HIGH';
+                this.setLEDState(shouldGlow);
+                console.log(`💡 LED → ${ledConfig.state}`);
+            }
         }
     }
 
