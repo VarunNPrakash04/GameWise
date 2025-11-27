@@ -611,9 +611,9 @@ moveBoardBtn.addEventListener("click", () => {
     console.log("Move Mode:", breadboardMoveMode);
 
     if (breadboardMoveMode) {
-        moveBoardBtn.textContent = "Lock Breadboard?";
+        moveBoardBtn.textContent = "Lock Board";
         moveBoardBtn.classList.add("active");
-        moveBoardBtn.classList.add("lock-mode");
+        moveBoardBtn.style.background = "#0066ff";
 
         // Deselect everything else
         deselectComponent();
@@ -632,9 +632,9 @@ moveBoardBtn.addEventListener("click", () => {
         console.log("🔒 Camera locked - Move Board mode ON");
         // Enable rotation
     } else {
-        moveBoardBtn.textContent = "Move Breadboard";
+        moveBoardBtn.textContent = "Move Board";
         moveBoardBtn.classList.remove("active");
-        moveBoardBtn.classList.remove("lock-mode");
+        moveBoardBtn.style.background = "#333";
 
         // Stop dragging
         draggingComponent = null;
@@ -1426,9 +1426,19 @@ window.addEventListener('pointerdown', (e) => {
                 const isRightClick = e.button === 2;
 
                 if (isLeftClick) {
-                    // Left-click: Press button only, don't allow dragging
+                    // Left-click: Press button animation (no drag)
                     highlightComponent(selectedComponent, false);
                     console.log("🖱️ Left-click on button: Press mode (no drag)");
+
+                    // Trigger button press animation
+                    pressButton(rootComponent);
+                    pressedButton = rootComponent;
+
+                    // Trigger simulator action if simulation is running
+                    if (window.simulator && window.simulator.isRunning) {
+                        window.simulator.handleButtonPress(rootComponent);
+                    }
+
                     // Don't set draggingComponent, so it won't move
                     return;
                 } else if (isRightClick) {
@@ -2159,21 +2169,12 @@ window.addEventListener('keydown', (e) => {
             scene.remove(selectedComponent);
 
             // Log deletion AFTER component is removed - Direct DOM manipulation
-            const connectionLog = document.getElementById('connectionLog');
-            if (connectionLog) {
-                const timestamp = new Date().toLocaleTimeString();
-                const entry = document.createElement('div');
-                entry.className = 'connection-log-entry delete';
-                entry.innerHTML = `
-                    <span class="timestamp">[${timestamp}]</span>
-                    <span class="message">🗑️ <span class="component-name">${compType}</span> component deleted</span>
-                `;
-                connectionLog.appendChild(entry);
-                connectionLog.scrollTop = connectionLog.scrollHeight;
-                console.log("✅ Component deletion logged:", compType);
-            } else {
-                console.error("❌ connectionLog element not found");
-            }
+            // Log deletion
+            logConnection(
+                `🗑️ <span class="component-name">${compType}</span> component deleted`,
+                'delete'
+            );
+            console.log("✅ Component deleted:", compType);
 
             selectedComponent = null;
             // If no breadboards remain, hide the Move Board button
@@ -3157,6 +3158,10 @@ function deleteBreadboard(breadboard) {
     }
 
     console.log('Breadboard deleted successfully');
+    logConnection(
+        `🗑️ <span class="component-name">BREADBOARD</span> component deleted`,
+        'delete'
+    );
 }
 // Right-click handler for breadboard
 // Right-click handler for breadboard, button, and LED
@@ -3226,6 +3231,10 @@ function deleteButton(button) {
     });
 
     console.log('Button deleted successfully, components remaining:', components.length);
+    logConnection(
+        `🗑️ <span class="component-name">BUTTON</span> component deleted`,
+        'delete'
+    );
 }
 // Delete LED component
 function deleteLED(led) {
@@ -3254,6 +3263,10 @@ function deleteLED(led) {
     });
 
     console.log('LED deleted successfully');
+    logConnection(
+        `🗑️ <span class="component-name">LED</span> component deleted`,
+        'delete'
+    );
 }
 // Show menu at event position for a specific wire
 function showWireContextMenu(event, wire) {
@@ -3972,19 +3985,9 @@ const modalError = document.getElementById('modalError');
 
 let currentSnapComponent = null;
 
-
-// A key to open manual snap modal, W for wire connection
+// A key to open manual snap modal
 window.addEventListener('keydown', (e) => {
-    // W key: Open wire connection modal
-    if (e.key === 'w' || e.key === 'W') {
-        if (hoveredPinForWire) {  // ✅ CORRECT VARIABLE
-            openWireConnectionModal(hoveredPinForWire);  // ✅ CORRECT FUNCTION
-        } else {
-            console.log("⚠️ No pin hovered. Hover over a pin and press W");
-        }
-    }
-    // A key: Open component snap modal
-    else if (e.key === 'a' || e.key === 'A') {
+    if (e.key === 'a' || e.key === 'A') {
         if (selectedComponent && (selectedComponent.userData.type === 'LED' || selectedComponent.userData.type === 'BUTTON')) {
             openManualSnapModal(selectedComponent);
         }
@@ -4049,70 +4052,6 @@ modalCancelBtn.addEventListener('click', () => {
 
 // Snap button
 modalSnapBtn.addEventListener('click', () => {
-    const modal = document.getElementById('manualSnapModal');
-    const modalTitle = document.getElementById('modalTitle');
-
-    // Check if this is a wire connection modal or component snap modal
-    if (modalTitle.textContent === 'Create Wire Connection') {
-        // Handle wire connection
-        handleWireConnection();
-    } else {
-        // Handle component snap (existing code)
-        handleComponentSnap();
-    }
-});
-
-function handleWireConnection() {
-    const modal = document.getElementById('manualSnapModal');
-    const modalError = document.getElementById('modalError');
-    const fromPinName = modal.dataset.fromPin;
-    const destPinInput = document.getElementById('wireDestPin');
-    const colorSelect = document.getElementById('wireColorPicker');
-
-    if (!destPinInput || !colorSelect) {
-        console.error("❌ Input elements not found");
-        return;
-    }
-
-    let toPinName = destPinInput.value.trim().toUpperCase();
-    const colorHex = parseInt(colorSelect.value);
-
-    if (!toPinName) {
-        modalError.textContent = 'Please enter a destination pin';
-        modalError.style.display = 'block';
-        return;
-    }
-
-    // Auto-add BB_ prefix
-    if (!toPinName.startsWith('BB_')) {
-        toPinName = 'BB_' + toPinName;
-    }
-
-    // Find pins
-    const fromPin = pinObjects.find(p => p.name === fromPinName);
-    const toPin = pinObjects.find(p => p.name === toPinName);
-
-    if (!fromPin) {
-        modalError.textContent = `From pin "${fromPinName}" not found`;
-        modalError.style.display = 'block';
-        return;
-    }
-
-    if (!toPin) {
-        modalError.textContent = `To pin "${toPinName}" not found`;
-        modalError.style.display = 'block';
-        return;
-    }
-
-    // Create wire
-    drawWire(fromPin, toPin, colorHex);
-    console.log(`✅ Wire created: ${fromPinName} → ${toPinName}`);
-
-    // Close modal
-    modal.style.display = 'none';
-}
-
-function handleComponentSnap() {
     if (!currentSnapComponent) return;
 
     const type = currentSnapComponent.userData.type;
@@ -4163,7 +4102,7 @@ function handleComponentSnap() {
 
     manualSnapModal.style.display = 'none';
     currentSnapComponent = null;
-}
+});
 
 function showModalError(message) {
     modalError.textContent = message;
@@ -4233,9 +4172,10 @@ function manualSnapButton(button, pins) {
             pin.children[1].material.color.set(0x000000);
             pin.children[1].material.visible = true;
         }
-    });
 
-    console.log(`✅ Button manually snapped to ${pins.length} pins:`, button.userData.snappedPins);
+
+        console.log(`✅ Button manually snapped to ${pins.length} pins:`, button.userData.snappedPins);
+    });
 
     // Log manual button snapping
     const pinNames = pins.map(p => `<span class="pin-info">${p.name}</span>`).join(', ');
@@ -4243,107 +4183,4 @@ function manualSnapButton(button, pins) {
         `📍 <span class="component-name">BUTTON</span> manually snapped to pins: ${pinNames}`,
         'snap'
     );
-}
-
-
-// ===== MANUAL WIRE CONNECTION WITH 'W' KEY =====
-
-let hoveredPinForWire = null;
-
-// Track which pin is being hovered
-window.addEventListener('pointermove', (e) => {
-    if (!pinObjects || pinObjects.length === 0) {
-        hoveredPinForWire = null;
-        return;
-    }
-
-    updateMouse(e);
-    raycaster.setFromCamera(mouse, camera);
-
-    // Check all pin objects
-    const allPinChildren = [];
-    pinObjects.forEach(pin => {
-        allPinChildren.push(pin);
-        pin.traverse(child => {
-            if (child.isMesh) allPinChildren.push(child);
-        });
-    });
-
-    const intersects = raycaster.intersectObjects(allPinChildren, false);
-
-    if (intersects.length > 0) {
-        const hitObject = intersects[0].object;
-        const pin = hitObject.parent;
-
-        if (pin && pin.userData && pin.userData.isPin) {
-            hoveredPinForWire = pin;
-        } else {
-            hoveredPinForWire = null;
-        }
-    } else {
-        hoveredPinForWire = null;
-    }
-});
-
-// W key to open wire connection modal
-window.addEventListener('keydown', (e) => {
-    if (e.key === 'w' || e.key === 'W') {
-        if (hoveredPinForWire) {
-            openWireConnectionModal(hoveredPinForWire);
-        } else {
-            console.log("⚠️ No pin hovered. Hover over a pin and press W to create a wire.");
-        }
-    }
-});
-
-function openWireConnectionModal(fromPin) {
-    console.log("📌 Opening wire modal for pin:", fromPin.name);
-
-    // Reuse the existing manual snap modal
-    const modal = document.getElementById('manualSnapModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalSubtitle = document.getElementById('modalSubtitle');
-    const modalInputs = document.getElementById('modalInputs');
-    const modalError = document.getElementById('modalError');
-
-    if (!modal) {
-        console.error("❌ Modal not found!");
-        return;
-    }
-
-    // Set title
-    modalTitle.textContent = 'Create Wire Connection';
-    modalSubtitle.textContent = `From: ${fromPin.name} → Enter destination pin`;
-
-    // Create input field
-    modalInputs.innerHTML = `
-        <div class="input-group">
-            <label>To Pin:</label>
-            <input type="text" id="wireDestPin" placeholder="e.g., A5, GND1, VCC2" style="width: 100%; padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 6px;">
-        </div>
-        <div class="input-group">
-            <label>Wire Color:</label>
-            <select id="wireColorPicker" style="width: 100%; padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 6px;">
-                <option value="0xff0000">Red</option>
-                <option value="0x000000">Black</option>
-                <option value="0x00ff00">Green</option>
-                <option value="0x0000ff">Blue</option>
-                <option value="0xffff00">Yellow</option>
-                <option value="0xffa500">Orange</option>
-                <option value="0x800080">Purple</option>
-                <option value="0xffffff">White</option>
-            </select>
-        </div>
-    `;
-
-    modalError.style.display = 'none';
-    modal.style.display = 'flex';
-
-    // Focus on input
-    setTimeout(() => {
-        document.getElementById('wireDestPin').focus();
-    }, 100);
-
-    // Store the from pin for later use
-    modal.dataset.fromPin = fromPin.name;
-}
+} 
