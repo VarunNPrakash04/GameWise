@@ -643,6 +643,41 @@
       transition: all 0.3s ease;
     }
 
+    /* Close button for Components menu */
+    .components-close-btn {
+      position: absolute;
+      top: 0px;
+      right: 0px;
+      background: #c62828;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(198, 40, 40, 0.4);
+      font-family: Arial, sans-serif;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .components-close-btn:hover {
+      background: #d32f2f;
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(198, 40, 40, 0.6);
+    }
+
+    .components-close-btn:active {
+      transform: scale(0.95);
+    }
+
     .spawn::before {
       content: '';
       position: absolute;
@@ -737,7 +772,10 @@
       /* Add gap between items */
       padding: 12px;
       background: transparent;
-
+      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s !important;
+      opacity: 0;
+      transform: translateY(-10px);
+      visibility: hidden;
       border-radius: transparent;
       box-shadow: none;
       z-index: 10001;
@@ -754,6 +792,28 @@
       overflow-x: auto;
       /* Horizontal scroll if needed */
       overflow-y: visible;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+    }
+
+    #components-menu.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    #components-menu.closing {
+      opacity: 0 !important;
+      transform: translateY(-10px) !important;
+      transition: opacity 0.5s ease, transform 0.3s ease !important;
+    }
+
+    #components-menu[aria-hidden="false"] {
+      opacity: 1;
+      transform: translateY(0);
+      visibility: visible;
     }
 
     /* subtle custom scrollbar */
@@ -1645,8 +1705,10 @@
     <!-- UI BAR -->
     <div id="uiBar">
       <div class="components-container">
+
         <button id="components-toggle" class="electric-border">Components</button>
         <div id="components-menu" aria-hidden="true">
+          <button id="components-close-btn" class="components-close-btn">✕</button>
           <div class="wire-control" id="wireControl">
             <!-- Hidden select for backward compatibility with main.js -->
             <select id="wireColorPicker" style="display: none;">
@@ -1850,6 +1912,33 @@
               menu.setAttribute('aria-hidden', 'true');
             }
           });
+          // Close button for Components menu
+          const componentsCloseBtn = document.getElementById('components-close-btn');
+          if (componentsCloseBtn) {
+            componentsCloseBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const menu = document.getElementById('components-menu');
+              const toggle = document.getElementById('components-toggle');
+
+              if (menu && toggle) {
+                // Add closing class for smooth animation
+                menu.classList.add('closing');
+
+                // Wait for animation to complete
+                setTimeout(() => {
+                  menu.classList.remove('visible', 'closing');
+                  menu.setAttribute('aria-hidden', 'true');
+
+                  // Show the Components button again
+                  toggle.style.opacity = '0';
+                  toggle.style.display = 'flex';
+                  setTimeout(() => {
+                    toggle.style.opacity = '1';
+                  }, 10);
+                }, 300);
+              }
+            });
+          }
           // Color picker dropdown animation (same as components menu)
           const colorToggle = document.getElementById('colorPickerToggle');
           const colorMenu = document.getElementById('colorPickerMenu');
