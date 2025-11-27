@@ -137,22 +137,59 @@ export class CircuitSimulator {
     }
 
     /**
- * Set LED state (on/off) for all connected LEDs
- */
+* Set LED state (on/off) for all connected LEDs with realistic glow
+*/
     setLEDState(shouldGlow) {
         this.components.forEach(comp => {
             if (comp.userData.type === 'LED') {
                 const isConnected = this.isLEDConnectedToPoweredPin(comp);
 
                 if (isConnected) {
+                    let ledBulb = null;
+
+                    // Find and update ONLY the LED_Bulb mesh
                     comp.traverse(child => {
-                        if (child.isMesh && child.material) {
-                            child.material.emissive = shouldGlow ? new THREE.Color(0xff0000) : new THREE.Color(0x000000);
-                            child.material.emissiveIntensity = shouldGlow ? 2 : 0;
+                        if (child.isMesh && child.name === 'LED_Bulb' && child.material) {
+                            ledBulb = child;
+                            if (shouldGlow) {
+                                // LED ON: Opaque warm red with glow
+                                child.material.emissive = new THREE.Color(0xcc0000);
+                                child.material.emissiveIntensity = 4;
+                                child.material.opacity = 1.0;
+                                child.material.transparent = true;
+                                child.material.color = new THREE.Color(0xcc0000);
+                            } else {
+                                // LED OFF: Transparent/clear glass look
+                                child.material.emissive = new THREE.Color(0x000000);
+                                child.material.emissiveIntensity = 0;
+                                child.material.opacity = 0.3; // Semi-transparent
+                                child.material.transparent = true;
+                                child.material.color = new THREE.Color(0xcccccc); // Light gray
+                            }
                             child.material.needsUpdate = true;
                         }
                     });
-                    console.log(`💡 LED visual state updated: ${shouldGlow ? 'ON' : 'OFF'}`);
+
+                    // Add/remove PointLight for realistic illumination
+                    if (shouldGlow && ledBulb) {
+                        // Remove old light if exists
+                        if (comp.userData.ledLight) {
+                            comp.remove(comp.userData.ledLight);
+                        }
+
+                        // Create new point light at bulb position
+                        const pointLight = new THREE.PointLight(0xcc0000, 2, 0.5);
+                        pointLight.position.copy(ledBulb.position);
+                        comp.add(pointLight);
+                        comp.userData.ledLight = pointLight;
+
+                        console.log(`💡 LED visual state updated: ON (with PointLight)`);
+                    } else if (!shouldGlow && comp.userData.ledLight) {
+                        // Remove light when LED turns off
+                        comp.remove(comp.userData.ledLight);
+                        comp.userData.ledLight = null;
+                        console.log(`💡 LED visual state updated: OFF (PointLight removed)`);
+                    }
                 } else {
                     console.warn('⚠️ LED found but not connected to powered pin:', comp.userData.snappedPins);
                 }
@@ -222,8 +259,8 @@ export class CircuitSimulator {
     }
 
     /**
-     * Set LED glow state
-     */
+  * Set LED glow state
+  */
     setLEDGlow(pinName, shouldGlow, brightness = 255, ledComponent = null) {
         // Find LED by pin or use provided component
         let led = ledComponent;
@@ -237,22 +274,44 @@ export class CircuitSimulator {
             return;
         }
 
-        // Update LED material
+        let ledBulb = null;
+
+        // Update LED material - target only LED_Bulb
         led.traverse(child => {
-            if (child.isMesh && child.material) {
+            if (child.isMesh && child.name === 'LED_Bulb' && child.material) {
+                ledBulb = child;
                 if (shouldGlow) {
-                    // Make LED glow red
-                    child.material.emissive = new THREE.Color(0xff0000);
-                    child.material.emissiveIntensity = (brightness / 255) * 2;
+                    // Make LED glow with warmer red
+                    child.material.color = new THREE.Color(0xcc0000);
+                    child.material.emissive = new THREE.Color(0xcc0000);
+                    child.material.emissiveIntensity = (brightness / 255) * 4;
+                    child.material.opacity = 1.0;
+                    child.material.transparent = true;
                     console.log('💡 LED glowing on pin:', pinName);
                 } else {
-                    // Turn off LED
+                    // Turn off LED - transparent glass
+                    child.material.color = new THREE.Color(0xffffff);
                     child.material.emissive = new THREE.Color(0x000000);
                     child.material.emissiveIntensity = 0;
+                    child.material.opacity = 0.2;
+                    child.material.transparent = true;
                 }
                 child.material.needsUpdate = true;
             }
         });
+        // Add/remove PointLight
+        if (shouldGlow && ledBulb) {
+            if (led.userData.ledLight) {
+                led.remove(led.userData.ledLight);
+            }
+            const pointLight = new THREE.PointLight(0xcc0000, (brightness / 255) * 2, 0.5);
+            pointLight.position.copy(ledBulb.position);
+            led.add(pointLight);
+            led.userData.ledLight = pointLight;
+        } else if (!shouldGlow && led.userData.ledLight) {
+            led.remove(led.userData.ledLight);
+            led.userData.ledLight = null;
+        }
     }
 
     /**
