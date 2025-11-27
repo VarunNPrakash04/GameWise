@@ -1,0 +1,85 @@
+/* Shortcuts Modal Styles */
+
+.shortcuts-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+}
+
+.shortcuts-content {
+    position: relative;
+    width: 80%;
+    max-width: 800px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    padding: 40px;
+    font-family: 'Rajdhani', sans-serif;
+    color: white;
+
+    /* 3D effect */
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.shortcuts-content h2 {
+    font-size: 28px;
+    margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.shortcuts-content ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 30px;
+}
+
+.shortcuts-content li {
+    font-size: 20px;
+    margin-bottom: 10px;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.shortcuts-content strong {
+    color: #00d9ff;
+    text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+}
+
+.shortcuts-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #c62828;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 35px;
+    height: 35px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(198, 40, 40, 0.5);
+    font-family: Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shortcuts-close-btn:hover {
+    background: #d32f2f;
+    transform: scale(1.1);
+}
+
+.shortcuts-close-btn:active {
+    transform: scale(0.95);
+}

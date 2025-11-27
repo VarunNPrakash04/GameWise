@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/src/colorDropdown.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="src/shortcutsModal.css">
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/menubar.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap"
@@ -2059,6 +2060,39 @@
             });
           }
         })();
+        // Shortcuts Modal
+        // Shortcuts Modal - wait for menu bar to be created
+        setTimeout(() => {
+          const shortcutsBtn = document.getElementById('shortcuts-btn');
+          const shortcutsModal = document.getElementById('shortcutsModal');
+          const shortcutsCloseBtn = document.getElementById('shortcutsCloseBtn');
+
+          if (shortcutsBtn && shortcutsModal && shortcutsCloseBtn) {
+            shortcutsBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              shortcutsModal.style.display = 'flex';
+              console.log('✅ Shortcuts modal opened');
+            });
+
+            shortcutsCloseBtn.addEventListener('click', () => {
+              shortcutsModal.style.display = 'none';
+            });
+
+            shortcutsModal.addEventListener('click', (e) => {
+              if (e.target === shortcutsModal) {
+                shortcutsModal.style.display = 'none';
+              }
+            });
+
+            console.log('✅ Shortcuts button event listener attached');
+          } else {
+            console.error('❌ Shortcuts elements not found:', {
+              shortcutsBtn: !!shortcutsBtn,
+              shortcutsModal: !!shortcutsModal,
+              shortcutsCloseBtn: !!shortcutsCloseBtn
+            });
+          }
+        }, 500);
       </script>
 
       <!-- Connection Info Console -->
@@ -2078,7 +2112,25 @@
           <div id="connectionLog" class="connection-log" data-active-tab="all"></div>
         </div>
       </div>
-
+      <!-- Shortcuts Info Modal -->
+      <div id="shortcutsModal" class="shortcuts-modal" style="display: none;">
+        <div class="shortcuts-content">
+          <button id="shortcutsCloseBtn" class="shortcuts-close-btn">✕</button>
+          <h2>⌨️ Keyboard Shortcuts</h2>
+          <ul>
+            <li><strong>A</strong> - Snap LED/Button to pins</li>
+            <li><strong>W</strong> - Create wire (hover pin first)</li>
+            <li><strong>R</strong> - Rotate LED (hold & drag)</li>
+            <li><strong>Delete</strong> - Remove component/wire</li>
+          </ul>
+          <h2>🖱️ Mouse Controls</h2>
+          <ul>
+            <li><strong>Button:</strong> Left-click = Press | Right-click + Drag = Move</li>
+            <li><strong>Other Components:</strong> Left-click + Drag = Move</li>
+            <li><strong>Wires:</strong> Click pin → Drag → Release on pin</li>
+          </ul>
+        </div>
+      </div>
 </body>
 
 </html>

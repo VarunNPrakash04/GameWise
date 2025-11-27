@@ -103,6 +103,9 @@ export function initMenuBar(saveCallback, loadCallback, clearCallback) {
                     </div>
                 </div>
             </div>
+            <div class="menu-item" id="shortcuts-btn">
+                <span>Shortcuts</span>
+            </div>
         </div>
         
         <div class="project-name" id="project-name">Untitled Project</div>
