@@ -2127,7 +2127,7 @@ window.addEventListener('keydown', (e) => {
         // Delete selected component
         if (selectedComponent) {
             const compType = selectedComponent.userData.type;
-            logConnection(`🗑️ <span class="component-name">${compType}</span> component deleted`, 'delete');
+
             // If deleting a breadboard, remove its rotation icon and clear global ref
             if (selectedComponent.userData.type === "BREADBOARD") {
                 try {
@@ -2157,8 +2157,25 @@ window.addEventListener('keydown', (e) => {
 
             // Remove from scene
             scene.remove(selectedComponent);
-            selectedComponent = null;
 
+            // Log deletion AFTER component is removed - Direct DOM manipulation
+            const connectionLog = document.getElementById('connectionLog');
+            if (connectionLog) {
+                const timestamp = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'connection-log-entry delete';
+                entry.innerHTML = `
+                    <span class="timestamp">[${timestamp}]</span>
+                    <span class="message">🗑️ <span class="component-name">${compType}</span> component deleted</span>
+                `;
+                connectionLog.appendChild(entry);
+                connectionLog.scrollTop = connectionLog.scrollHeight;
+                console.log("✅ Component deletion logged:", compType);
+            } else {
+                console.error("❌ connectionLog element not found");
+            }
+
+            selectedComponent = null;
             // If no breadboards remain, hide the Move Board button
             const anyBreadboard = components.some(c => c.userData && c.userData.type === "BREADBOARD");
             if (!anyBreadboard) {
@@ -2167,8 +2184,6 @@ window.addEventListener('keydown', (e) => {
                 breadboardMoveMode = false;
                 controls.enabled = true;
             }
-            +
-                console.log("Component deleted");
         }
     }
 });

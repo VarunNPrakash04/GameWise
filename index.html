@@ -1450,11 +1450,11 @@
     }
 
     /* Hide entries based on active tab */
-    .connection-log[data-active-tab="wires"] .connection-log-entry:not(.wire) {
+    .connection-log[data-active-tab="wires"] .connection-log-entry:not(.wire):not(.delete) {
       display: none;
     }
 
-    .connection-log[data-active-tab="components"] .connection-log-entry:not(.snap):not(.component) {
+    .connection-log[data-active-tab="components"] .connection-log-entry:not(.snap):not(.component):not(.delete) {
       display: none;
     }
   </style>
