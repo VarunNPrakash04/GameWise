@@ -2888,32 +2888,32 @@ function releaseButton(button) {
 // Track which button is currently pressed
 let pressedButton = null;
 
-// ===== BUTTON PRESS MOUSE HANDLERS =====
-window.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return; // Only left click
+// // ===== BUTTON PRESS MOUSE HANDLERS =====
+// window.addEventListener('mousedown', (e) => {
+//     if (e.button !== 0) return; // Only left click
 
-    updateMouse(e);
-    raycaster.setFromCamera(mouse, camera);
+//     updateMouse(e);
+//     raycaster.setFromCamera(mouse, camera);
 
-    const intersects = raycaster.intersectObjects(components, true);
+//     const intersects = raycaster.intersectObjects(components, true);
 
-    // Check if we clicked on Button_Top mesh specifically
-    for (const hit of intersects) {
-        // Check if this is the Button_Top mesh
-        if (hit.object.name === 'Button_Top') {
-            const root = findComponentRoot(hit.object);
-            if (root && root.userData.type === 'BUTTON' && !wireMode) {
-                pressButton(root);
-                pressedButton = root;
-                // Trigger simulator action if simulation is running
-                if (window.simulator && window.simulator.isRunning) {
-                    window.simulator.handleButtonPress(root);
-                }
-                break;
-            }
-        }
-    }
-});
+//     // Check if we clicked on Button_Top mesh specifically
+//     for (const hit of intersects) {
+//         // Check if this is the Button_Top mesh
+//         if (hit.object.name === 'Button_Top') {
+//             const root = findComponentRoot(hit.object);
+//             if (root && root.userData.type === 'BUTTON' && !wireMode) {
+//                 pressButton(root);
+//                 pressedButton = root;
+//                 // Trigger simulator action if simulation is running
+//                 if (window.simulator && window.simulator.isRunning) {
+//                     window.simulator.handleButtonPress(root);
+//                 }
+//                 break;
+//             }
+//         }
+//     }
+// });
 
 window.addEventListener('mouseup', (e) => {
     if (e.button !== 0) return;

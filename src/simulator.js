@@ -96,6 +96,8 @@ export class CircuitSimulator {
             this.components.forEach(comp => {
                 if (comp.userData.type === 'BUTTON') {
                     comp.userData.buttonStates = componentStates.BUTTON;
+                    // Reset toggle state so first press initializes correctly
+                    delete comp.userData.toggleState;
                 }
             });
         }
@@ -283,20 +285,19 @@ export class CircuitSimulator {
 
         // Handle TOGGLE behavior
         if (buttonStates.type === 'TOGGLE') {
-            // Initialize toggle state on first press (don't flip yet)
+            // Initialize to LOW if not set (LED starts OFF)
             if (button.userData.toggleState === undefined) {
-                button.userData.toggleState = buttonStates.initialState || 'LOW';
-                console.log(`🔘 Toggle initialized to: ${button.userData.toggleState}`);
-            } else {
-                // Flip the state on subsequent presses
-                button.userData.toggleState = button.userData.toggleState === 'HIGH' ? 'LOW' : 'HIGH';
-                console.log(`🔘 Toggle flipped to: ${button.userData.toggleState}`);
+                button.userData.toggleState = 'LOW';
             }
+
+            // Always flip the state on every press
+            button.userData.toggleState = button.userData.toggleState === 'HIGH' ? 'LOW' : 'HIGH';
+            console.log(`🔘 Toggle flipped to: ${button.userData.toggleState}`);
 
             // Apply to LED
             const shouldGlow = button.userData.toggleState === 'HIGH';
             this.setLEDState(shouldGlow);
-            console.log(`💡 LED toggled → ${button.userData.toggleState}`);
+            console.log(`💡 LED toggled → ${button.userData.toggleState} (shouldGlow: ${shouldGlow})`);
             return;
         }
 
