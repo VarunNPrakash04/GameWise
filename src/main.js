@@ -2127,7 +2127,7 @@ window.addEventListener('keydown', (e) => {
         // Delete selected component
         if (selectedComponent) {
             const compType = selectedComponent.userData.type;
-            logConnection(`🗑️ <span class="component-name">${compType}</span> component deleted`, 'delete');
+
             // If deleting a breadboard, remove its rotation icon and clear global ref
             if (selectedComponent.userData.type === "BREADBOARD") {
                 try {
@@ -2157,8 +2157,16 @@ window.addEventListener('keydown', (e) => {
 
             // Remove from scene
             scene.remove(selectedComponent);
-            selectedComponent = null;
 
+            // Log deletion AFTER component is removed - Direct DOM manipulation
+            // Log deletion
+            logConnection(
+                `🗑️ <span class="component-name">${compType}</span> component deleted`,
+                'delete'
+            );
+            console.log("✅ Component deleted:", compType);
+
+            selectedComponent = null;
             // If no breadboards remain, hide the Move Board button
             const anyBreadboard = components.some(c => c.userData && c.userData.type === "BREADBOARD");
             if (!anyBreadboard) {
@@ -2167,8 +2175,6 @@ window.addEventListener('keydown', (e) => {
                 breadboardMoveMode = false;
                 controls.enabled = true;
             }
-            +
-                console.log("Component deleted");
         }
     }
 });
@@ -3142,6 +3148,10 @@ function deleteBreadboard(breadboard) {
     }
 
     console.log('Breadboard deleted successfully');
+    logConnection(
+        `🗑️ <span class="component-name">BREADBOARD</span> component deleted`,
+        'delete'
+    );
 }
 // Right-click handler for breadboard
 // Right-click handler for breadboard, button, and LED
@@ -3211,6 +3221,10 @@ function deleteButton(button) {
     });
 
     console.log('Button deleted successfully, components remaining:', components.length);
+    logConnection(
+        `🗑️ <span class="component-name">BUTTON</span> component deleted`,
+        'delete'
+    );
 }
 // Delete LED component
 function deleteLED(led) {
@@ -3238,752 +3252,756 @@ function deleteLED(led) {
         }
     });
 
-    console.log('LED deleted successfully');
-}
-// Show menu at event position for a specific wire
-function showWireContextMenu(event, wire) {
-    ensureWireContextMenu();
-    const btn = document.getElementById('deleteWireBtn');
-    if (!btn) return;
-    btn.style.left = (event.clientX + 4) + 'px';
-    btn.style.top = (event.clientY + 4) + 'px';
-    btn.style.display = 'block';
-    btn.dataset.targetWireId = String(wire.userData.id);
-    // prevent native context menu when our custom menu is visible
-    event.preventDefault();
-}
-
-// Hide the floating menu
-function hideWireContextMenu() {
-    const btn = document.getElementById('deleteWireBtn');
-    if (!btn) return;
-    btn.style.display = 'none';
-    delete btn.dataset.targetWireId;
-}
-
-// Remove a wire object safely (reused by both Delete key and context menu)
-function deleteWireObject(wire) {
-    if (!wire || !wire.userData || !wire.userData.id) return;
-
-    // Capture pins
-    const fromPin = wire.userData.fromPinObj;
-    const toPin = wire.userData.toPinObj;
-
-    // Remove endpoint helpers
-    if (wire.userData.fromHelper) {
-        scene.remove(wire.userData.fromHelper);
-        wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== wire.userData.fromHelper);
-    }
-    if (wire.userData.toHelper) {
-        scene.remove(wire.userData.toHelper);
-        wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== wire.userData.toHelper);
-    }
-
-    // Dispose geometry & material
-    try { wire.geometry.dispose(); } catch (e) { }
-    try { if (wire.material) wire.material.dispose(); } catch (e) { }
-
-    // Remove from connection map and wires array
-    wireConnections = wireConnections.filter(w => w.id !== wire.userData.id);
-    wires = wires.filter(w => w.userData.id !== wire.userData.id);
-
-    // Remove from scene
-    if (wire.parent) {
-        wire.parent.remove(wire);
-    } else {
-        scene.remove(wire);
-    }
-
-    // If this was selectedWire, clear selection state
-    if (selectedWire === wire) {
-        selectedWire = null;
-    }
-
-    // Refresh pin outlines for both endpoints
-    refreshPinHighlight(fromPin);
-    refreshPinHighlight(toPin);
-
-    console.log("Wire deleted via context menu:", wire.userData.id, "UPDATED CONNECTION MAP:", wireConnections);
-}
-
-// NEW: unify deletion logic for selectedWire so both Delete key and button use same behavior
-function deleteSelectedWire() {
-    if (!selectedWire) return;
-
-    const id = selectedWire.userData.id;
-
-    // Capture pins before removal to refresh their state afterwards
-    const fromPinObj = selectedWire.userData.fromPinObj;
-    const toPinObj = selectedWire.userData.toPinObj;
-
-    // Remove endpoint helpers
-    if (selectedWire.userData.fromHelper) {
-        scene.remove(selectedWire.userData.fromHelper);
-        wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.fromHelper);
-    }
-    if (selectedWire.userData.toHelper) {
-        scene.remove(selectedWire.userData.toHelper);
-        wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
-    }
-
-    // Dispose geometry/material safely
-    try { selectedWire.geometry.dispose(); } catch (err) { }
-    try { if (selectedWire.material) selectedWire.material.dispose(); } catch (err) { }
-
-    // Remove from connection map and wires array
-    wireConnections = wireConnections.filter(w => w.id !== id);
-    wires = wires.filter(w => w.userData.id !== id);
-
-    // Remove from scene
-    if (selectedWire.parent) {
-        selectedWire.parent.remove(selectedWire);
-    } else {
-        scene.remove(selectedWire);
-    }
-    logConnection(
-        `🗑️ Wire deleted: <span class="pin-info">${fromPinObj.name}</span> ↔ <span class="pin-info">${toPinObj.name}</span>`,
-        'delete'
-    );
-
-    // Clear selection
-    selectedWire = null;
-
-    // Refresh outline state on both pins (will hide if no other wire remains)
-    refreshPinHighlight(fromPinObj);
-    refreshPinHighlight(toPinObj);
-
-    console.log("UPDATED CONNECTION MAP:", wireConnections);
-}
-
-// Right-click handler: show delete button when a wire is under cursor
-window.addEventListener('contextmenu', (e) => {
-    // Prevent native menu if we're over a wire
-    updateMouse(e);
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(wires, true);
-    if (intersects.length > 0) {
-        // Ensure we target the top-level wire mesh (in case a child was hit)
-        let obj = intersects[0].object;
-        while (obj && !(obj.userData && obj.userData.isWire)) {
-            obj = obj.parent;
-        }
-        if (obj) {
-            showWireContextMenu(e, obj);
-            return;
-        }
-    }
-    // hide if clicked elsewhere
-    hideWireContextMenu();
-});
-
-// Hide menu on any left-click or when the user scrolls/resizes
-window.addEventListener('pointerdown', (e) => {
-    // Only hide if left-click and the click is outside the floating delete button
-    if (e.button === 0) {
-        const btn = document.getElementById('deleteWireBtn');
-        if (btn && btn.style.display === 'block') {
-            // If click target is not inside our button, hide; otherwise let the button's own handlers run
-            if (!btn.contains(e.target)) hideWireContextMenu();
-        }
-    }
-});
-window.addEventListener('wheel', hideWireContextMenu);
-window.addEventListener('resize', hideWireContextMenu);
-window.addEventListener('scroll', hideWireContextMenu);
-
-
-function saveStateToLocalStorage() {
-    try {
-        const state = {
-            components: components.map(comp => {
-                // Clean userData to avoid circular references
-                const cleanUserData = {
-                    type: comp.userData.type,
-                    snappedPins: comp.userData.snappedPins,
-                    // Don't save the 'pins' object as it contains Three.js object references
-                };
-
-                return {
-                    type: comp.userData.type,
-                    position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
-                    rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
-                    scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
-                    userData: cleanUserData
-                };
-            }),
-            wires: wires.map(wire => ({
-                id: wire.userData.id,
-                fromPin: wire.userData.fromPin,
-                toPin: wire.userData.toPin,
-                color: wire.userData.color
-            })),
-            wireConnections: wireConnections,
-            arduinoCode: getEditorInstance() ? getEditorInstance().getValue() : ''
-        };
-
-        localStorage.setItem('gamewise_board_state', JSON.stringify(state));
-        console.log('✅ State saved to localStorage');
-    } catch (error) {
-        console.error('❌ Error saving state:', error);
-    }
-}
-
-function loadStateFromLocalStorage() {
-    try {
-        const savedState = localStorage.getItem('gamewise_board_state');
-        if (!savedState) {
-            console.log('No saved state found');
-            return false;
-        }
-
-        const state = JSON.parse(savedState);
-
-        // Clear current scene
-        clearScene();
-
-        // Restore components
-        state.components.forEach(compData => {
-            let comp = null;
-
-            if (compData.type === 'BREADBOARD') {
-                // Spawn breadboard
-                loadingOverlay.classList.remove("hidden");
-                const breadboardLoader = new GLTFLoader();
-                breadboardLoader.load('/Breadboard.glb', (gltf) => {
-                    const bb = gltf.scene;
-                    breadboard = bb;
-
-                    bb.position.set(compData.position.x, compData.position.y, compData.position.z);
-                    bb.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                    bb.scale.set(compData.scale.x, compData.scale.y, compData.scale.z);
-                    bb.userData = compData.userData;
-
-                    scene.add(bb);
-                    components.push(bb);
-
-                    // Detect breadboard pins
-                    bb.traverse((obj) => {
-                        if (obj.type === "Object3D" && (obj.name.startsWith("BB_") || obj.name.includes("GND") || obj.name.includes("VCC"))) {
-                            obj.userData.isPin = true;
-
-                            const helper = new THREE.Mesh(
-                                new THREE.SphereGeometry(0.03),
-                                new THREE.MeshBasicMaterial({ visible: false })
-                            );
-                            obj.add(helper);
-
-                            const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
-                            const ringMat = new THREE.MeshBasicMaterial({
-                                color: 0x000000,
-                                visible: false,
-                                transparent: true
-                            });
-                            const ring = new THREE.Mesh(ringGeo, ringMat);
-                            ring.rotation.x = Math.PI / 2;
-                            obj.add(ring);
-
-                            pinObjects.push(obj);
-                        }
-                    });
-
-                    // Apply materials
-                    bb.traverse((child) => {
-                        if (child instanceof THREE.Mesh && child.material) {
-                            const materials = Array.isArray(child.material) ? child.material : [child.material];
-                            child.material = materials.map((mat) => {
-                                if (mat.isMeshStandardMaterial) {
-                                    mat.roughness = 1;
-                                    mat.metalness = 1;
-                                    mat.envMapIntensity = 1;
-                                    mat.needsUpdate = true;
-                                }
-                                return mat;
-                            });
-                            if (child.material.length === 1) {
-                                child.material = child.material[0];
-                            }
-                        }
-                    });
-
-                    createBreadboardIcon(bb);
-                    loadingOverlay.classList.add("hidden");
-                    moveBoardBtn.style.display = "block";
-
-                    console.log('Breadboard loaded, restoring wires...');
-                    // Restore wires after breadboard is loaded
-                    setTimeout(() => {
-                        if (state.wires && state.wires.length > 0) {
-                            state.wires.forEach(wireData => {
-                                const fromPin = pinObjects.find(p => p.name === wireData.fromPin);
-                                const toPin = pinObjects.find(p => p.name === wireData.toPin);
-
-                                if (fromPin && toPin) {
-                                    drawWire(fromPin, toPin, wireData.color);
-                                    console.log(`Wire restored: ${wireData.fromPin} -> ${wireData.toPin}`);
-                                } else {
-                                    console.warn(`Could not restore wire: ${wireData.fromPin} -> ${wireData.toPin}`);
-                                }
-                            });
-
-                            if (state.wireConnections) {
-                                // Clear and repopulate without breaking reference
-                                wireConnections.length = 0;
-                                state.wireConnections.forEach(wc => wireConnections.push(wc));
-                                console.log('✅ Wire connections restored:', wireConnections.length);
-                            }
-                        }
-                    }, 800);
-                });
+                console.log('LED deleted successfully');
+                logConnection(
+                    `🗑️ <span class="component-name">LED</span> component deleted`,
+                    'delete'
+                ); 
             }
-            else if (compData.type === 'LED') {
-                comp = createLEDPlaceholder();
-                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
-                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                comp.userData = compData.userData;
+            // Show menu at event position for a specific wire
+            function showWireContextMenu(event, wire) {
+                ensureWireContextMenu();
+                const btn = document.getElementById('deleteWireBtn');
+                if (!btn) return;
+                btn.style.left = (event.clientX + 4) + 'px';
+                btn.style.top = (event.clientY + 4) + 'px';
+                btn.style.display = 'block';
+                btn.dataset.targetWireId = String(wire.userData.id);
+                // prevent native context menu when our custom menu is visible
+                event.preventDefault();
+            }
 
-                scene.add(comp);
-                components.push(comp);
+            // Hide the floating menu
+            function hideWireContextMenu() {
+                const btn = document.getElementById('deleteWireBtn');
+                if (!btn) return;
+                btn.style.display = 'none';
+                delete btn.dataset.targetWireId;
+            }
 
-                // Restore LED pin highlights if it was snapped
-                if (compData.userData.snappedPins) {
-                    setTimeout(() => {
-                        const longPin = pinObjects.find(p => p.name === compData.userData.snappedPins.long);
-                        const shortPin = pinObjects.find(p => p.name === compData.userData.snappedPins.short);
+            // Remove a wire object safely (reused by both Delete key and context menu)
+            function deleteWireObject(wire) {
+                if (!wire || !wire.userData || !wire.userData.id) return;
 
-                        if (longPin && longPin.children && longPin.children[1]) {
-                            longPin.children[1].material.color.set(0x000000);
-                            longPin.children[1].material.visible = true;
-                        }
-                        if (shortPin && shortPin.children && shortPin.children[1]) {
-                            shortPin.children[1].material.color.set(0x000000);
-                            shortPin.children[1].material.visible = true;
-                        }
-                        console.log(`LED snapping restored: ${compData.userData.snappedPins.long} & ${compData.userData.snappedPins.short}`);
-                    }, 1000);
+                // Capture pins
+                const fromPin = wire.userData.fromPinObj;
+                const toPin = wire.userData.toPinObj;
+
+                // Remove endpoint helpers
+                if (wire.userData.fromHelper) {
+                    scene.remove(wire.userData.fromHelper);
+                    wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== wire.userData.fromHelper);
                 }
-            }
-            else if (compData.type === 'BUTTON') {
-                comp = createButtonPlaceholder();
-                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
-                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                comp.userData = compData.userData;
-
-                scene.add(comp);
-                components.push(comp);
-
-                // Restore BUTTON pin highlights if it was snapped
-                if (compData.userData.snappedPins && Array.isArray(compData.userData.snappedPins)) {
-                    setTimeout(() => {
-                        compData.userData.snappedPins.forEach(pinName => {
-                            const pin = pinObjects.find(p => p.name === pinName);
-                            if (pin && pin.children && pin.children[1]) {
-                                pin.children[1].material.color.set(0x000000);
-                                pin.children[1].material.visible = true;
-                            }
-                        });
-                        console.log(`Button snapping restored: ${compData.userData.snappedPins.length} pins`);
-                    }, 1000);
+                if (wire.userData.toHelper) {
+                    scene.remove(wire.userData.toHelper);
+                    wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== wire.userData.toHelper);
                 }
 
-                console.log('Button restored at', comp.position);
-            }
-            else if (compData.type === 'RESISTOR') {
-                comp = createResistorPlaceholder();
-                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
-                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                comp.userData = compData.userData;
+                // Dispose geometry & material
+                try { wire.geometry.dispose(); } catch (e) { }
+                try { if (wire.material) wire.material.dispose(); } catch (e) { }
 
-                scene.add(comp);
-                components.push(comp);
-            }
-        });
+                // Remove from connection map and wires array
+                wireConnections = wireConnections.filter(w => w.id !== wire.userData.id);
+                wires = wires.filter(w => w.userData.id !== wire.userData.id);
 
-        // Restore Arduino code
-        const editor = getEditorInstance();
-        if (state.arduinoCode && editor) {
-            editor.setValue(state.arduinoCode);
-        }
-
-        console.log('✅ State loaded from localStorage');
-        return true;
-    } catch (error) {
-        console.error('❌ Error loading state:', error);
-        return false;
-    }
-}
-
-
-function clearScene() {
-    // Remove all components
-    components.forEach(comp => {
-        scene.remove(comp);
-    });
-    components = [];
-
-    // Remove all wires
-    wires.forEach(wire => {
-        if (wire.userData.fromHelper) scene.remove(wire.userData.fromHelper);
-        if (wire.userData.toHelper) scene.remove(wire.userData.toHelper);
-        scene.remove(wire);
-    });
-    wires = [];
-    wireConnections = [];
-
-    // Clear ONLY breadboard pins, keep Arduino pins
-    pinObjects = pinObjects.filter(pin => {
-        // Keep pins that belong to Arduino (start with "Pin_")
-        return pin.name && pin.name.startsWith("Pin_");
-    });
-
-    // Reset breadboard
-    breadboard = null;
-    moveBoardBtn.style.display = "none";
-
-    console.log('Scene cleared, Arduino pins preserved');
-}
-
-
-// Export for manual save/load buttons (optional)
-window.saveState = saveStateToLocalStorage;
-window.loadState = loadStateFromLocalStorage;
-window.clearState = () => {
-    localStorage.removeItem('gamewise_board_state');
-    clearScene();
-    console.log('✅ State cleared');
-};
-
-initMenuBar(
-    // Save callback - returns current state
-    () => {
-        const state = {
-            components: components.map(comp => {
-                // Clean userData to avoid circular references
-                const cleanUserData = {
-                    type: comp.userData.type,
-                    snappedPins: comp.userData.snappedPins,
-                    // Don't save the 'pins' object as it contains Three.js object references
-                };
-
-                return {
-                    type: comp.userData.type,
-                    position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
-                    rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
-                    scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
-                    userData: cleanUserData
-                };
-            }),
-            wires: wires.map(wire => ({
-                id: wire.userData.id,
-                fromPin: wire.userData.fromPin,
-                toPin: wire.userData.toPin,
-                color: wire.userData.color
-            })),
-            wireConnections: wireConnections,
-            arduinoCode: getEditorInstance() ? getEditorInstance().getValue() : ''
-        };
-        return state;
-    },
-    // Load callback - loads state from file
-    // Load callback - loads state from file
-    (state) => {
-        console.log('Loading state:', state);
-        clearScene();
-
-        let breadboardLoaded = false;
-
-        // Restore components
-        state.components.forEach(compData => {
-            let comp = null;
-
-            if (compData.type === 'BREADBOARD') {
-                breadboardLoaded = true;
-                const breadboardLoader = new GLTFLoader();
-                breadboardLoader.load('/Breadboard.glb', (gltf) => {
-                    const bb = gltf.scene;
-                    breadboard = bb;
-
-                    bb.position.set(compData.position.x, compData.position.y, compData.position.z);
-                    bb.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                    bb.scale.set(compData.scale.x, compData.scale.y, compData.scale.z);
-                    bb.userData = compData.userData;
-
-                    scene.add(bb);
-                    components.push(bb);
-
-                    bb.traverse((obj) => {
-                        if (obj.type === "Object3D" && (obj.name.startsWith("BB_") || obj.name.includes("GND") || obj.name.includes("VCC"))) {
-                            obj.userData.isPin = true;
-
-                            const helper = new THREE.Mesh(
-                                new THREE.SphereGeometry(0.03),
-                                new THREE.MeshBasicMaterial({ visible: false })
-                            );
-                            obj.add(helper);
-
-                            const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
-                            const ringMat = new THREE.MeshBasicMaterial({
-                                color: 0x000000,
-                                visible: false,
-                                transparent: true
-                            });
-                            const ring = new THREE.Mesh(ringGeo, ringMat);
-                            ring.rotation.x = Math.PI / 2;
-                            obj.add(ring);
-
-                            pinObjects.push(obj);
-                        }
-                    });
-
-                    bb.traverse((child) => {
-                        if (child instanceof THREE.Mesh && child.material) {
-                            const materials = Array.isArray(child.material) ? child.material : [child.material];
-                            child.material = materials.map((mat) => {
-                                if (mat.isMeshStandardMaterial) {
-                                    mat.roughness = 1;
-                                    mat.metalness = 1;
-                                    mat.envMapIntensity = 1;
-                                    mat.needsUpdate = true;
-                                }
-                                return mat;
-                            });
-                            if (child.material.length === 1) {
-                                child.material = child.material[0];
-                            }
-                        }
-                    });
-
-                    createBreadboardIcon(bb);
-                    moveBoardBtn.style.display = "block";
-
-                    console.log('Breadboard loaded, restoring wires...');
-                    // Restore wires after breadboard is loaded
-                    setTimeout(() => {
-                        if (state.wires && state.wires.length > 0) {
-                            state.wires.forEach(wireData => {
-                                const fromPin = pinObjects.find(p => p.name === wireData.fromPin);
-                                const toPin = pinObjects.find(p => p.name === wireData.toPin);
-
-                                if (fromPin && toPin) {
-                                    drawWire(fromPin, toPin, wireData.color);
-                                    console.log(`Wire restored: ${wireData.fromPin} -> ${wireData.toPin}`);
-                                } else {
-                                    console.warn(`Could not restore wire: ${wireData.fromPin} -> ${wireData.toPin}`);
-                                }
-                            });
-
-                            if (state.wireConnections) {
-                                // Clear and repopulate without breaking reference
-                                wireConnections.length = 0;
-                                state.wireConnections.forEach(wc => wireConnections.push(wc));
-                                console.log('✅ Wire connections restored:', wireConnections.length);
-                            }
-                        }
-                    }, 800);
-                });
-            }
-            else if (compData.type === 'LED') {
-                comp = createLEDPlaceholder();
-                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
-                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                comp.userData = compData.userData;
-
-                scene.add(comp);
-                components.push(comp);
-
-                // Restore LED pin highlights if it was snapped
-                if (compData.userData.snappedPins) {
-                    setTimeout(() => {
-                        const longPin = pinObjects.find(p => p.name === compData.userData.snappedPins.long);
-                        const shortPin = pinObjects.find(p => p.name === compData.userData.snappedPins.short);
-
-                        if (longPin && longPin.children && longPin.children[1]) {
-                            longPin.children[1].material.color.set(0x000000);
-                            longPin.children[1].material.visible = true;
-                        }
-                        if (shortPin && shortPin.children && shortPin.children[1]) {
-                            shortPin.children[1].material.color.set(0x000000);
-                            shortPin.children[1].material.visible = true;
-                        }
-                        console.log(`LED snapping restored: ${compData.userData.snappedPins.long} & ${compData.userData.snappedPins.short}`);
-                    }, 1000);
-                }
-
-                console.log('LED restored at', comp.position);
-            }
-            else if (compData.type === 'BUTTON') {
-                comp = createButtonPlaceholder();
-                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
-                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                comp.userData = compData.userData;
-
-                scene.add(comp);
-                components.push(comp);
-
-                // Restore BUTTON pin highlights if it was snapped
-                if (compData.userData.snappedPins && Array.isArray(compData.userData.snappedPins)) {
-                    setTimeout(() => {
-                        compData.userData.snappedPins.forEach(pinName => {
-                            const pin = pinObjects.find(p => p.name === pinName);
-                            if (pin && pin.children && pin.children[1]) {
-                                pin.children[1].material.color.set(0x000000);
-                                pin.children[1].material.visible = true;
-                            }
-                        });
-                        console.log(`Button snapping restored: ${compData.userData.snappedPins.length} pins`);
-                    }, 1000);
-                }
-            }
-            else if (compData.type === 'RESISTOR') {
-                comp = createResistorPlaceholder();
-                comp.position.set(compData.position.x, compData.position.y, compData.position.z);
-                comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
-                comp.userData = compData.userData;
-
-                scene.add(comp);
-                components.push(comp);
-                console.log('Resistor restored at', comp.position);
-            }
-        });
-
-        // Restore Arduino code - wait for editor to be ready
-        if (state.arduinoCode) {
-            const trySetCode = () => {
-                const editor = getEditorInstance();
-                if (editor) {
-                    editor.setValue(state.arduinoCode);
-                    console.log('✅ Arduino code restored');
+                // Remove from scene
+                if (wire.parent) {
+                    wire.parent.remove(wire);
                 } else {
-                    // Editor not ready yet, try again
-                    setTimeout(trySetCode, 500);
+                    scene.remove(wire);
                 }
+
+                // If this was selectedWire, clear selection state
+                if (selectedWire === wire) {
+                    selectedWire = null;
+                }
+
+                // Refresh pin outlines for both endpoints
+                refreshPinHighlight(fromPin);
+                refreshPinHighlight(toPin);
+
+                console.log("Wire deleted via context menu:", wire.userData.id, "UPDATED CONNECTION MAP:", wireConnections);
+            }
+
+            // NEW: unify deletion logic for selectedWire so both Delete key and button use same behavior
+            function deleteSelectedWire() {
+                if (!selectedWire) return;
+
+                const id = selectedWire.userData.id;
+
+                // Capture pins before removal to refresh their state afterwards
+                const fromPinObj = selectedWire.userData.fromPinObj;
+                const toPinObj = selectedWire.userData.toPinObj;
+
+                // Remove endpoint helpers
+                if (selectedWire.userData.fromHelper) {
+                    scene.remove(selectedWire.userData.fromHelper);
+                    wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.fromHelper);
+                }
+                if (selectedWire.userData.toHelper) {
+                    scene.remove(selectedWire.userData.toHelper);
+                    wireEndpointHelpers = wireEndpointHelpers.filter(h => h !== selectedWire.userData.toHelper);
+                }
+
+                // Dispose geometry/material safely
+                try { selectedWire.geometry.dispose(); } catch (err) { }
+                try { if (selectedWire.material) selectedWire.material.dispose(); } catch (err) { }
+
+                // Remove from connection map and wires array
+                wireConnections = wireConnections.filter(w => w.id !== id);
+                wires = wires.filter(w => w.userData.id !== id);
+
+                // Remove from scene
+                if (selectedWire.parent) {
+                    selectedWire.parent.remove(selectedWire);
+                } else {
+                    scene.remove(selectedWire);
+                }
+                logConnection(
+                    `🗑️ Wire deleted: <span class="pin-info">${fromPinObj.name}</span> ↔ <span class="pin-info">${toPinObj.name}</span>`,
+                    'delete'
+                );
+
+                // Clear selection
+                selectedWire = null;
+
+                // Refresh outline state on both pins (will hide if no other wire remains)
+                refreshPinHighlight(fromPinObj);
+                refreshPinHighlight(toPinObj);
+
+                console.log("UPDATED CONNECTION MAP:", wireConnections);
+            }
+
+            // Right-click handler: show delete button when a wire is under cursor
+            window.addEventListener('contextmenu', (e) => {
+                // Prevent native menu if we're over a wire
+                updateMouse(e);
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(wires, true);
+                if (intersects.length > 0) {
+                    // Ensure we target the top-level wire mesh (in case a child was hit)
+                    let obj = intersects[0].object;
+                    while (obj && !(obj.userData && obj.userData.isWire)) {
+                        obj = obj.parent;
+                    }
+                    if (obj) {
+                        showWireContextMenu(e, obj);
+                        return;
+                    }
+                }
+                // hide if clicked elsewhere
+                hideWireContextMenu();
+            });
+
+            // Hide menu on any left-click or when the user scrolls/resizes
+            window.addEventListener('pointerdown', (e) => {
+                // Only hide if left-click and the click is outside the floating delete button
+                if (e.button === 0) {
+                    const btn = document.getElementById('deleteWireBtn');
+                    if (btn && btn.style.display === 'block') {
+                        // If click target is not inside our button, hide; otherwise let the button's own handlers run
+                        if (!btn.contains(e.target)) hideWireContextMenu();
+                    }
+                }
+            });
+            window.addEventListener('wheel', hideWireContextMenu);
+            window.addEventListener('resize', hideWireContextMenu);
+            window.addEventListener('scroll', hideWireContextMenu);
+
+
+            function saveStateToLocalStorage() {
+                try {
+                    const state = {
+                        components: components.map(comp => {
+                            // Clean userData to avoid circular references
+                            const cleanUserData = {
+                                type: comp.userData.type,
+                                snappedPins: comp.userData.snappedPins,
+                                // Don't save the 'pins' object as it contains Three.js object references
+                            };
+
+                            return {
+                                type: comp.userData.type,
+                                position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
+                                rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
+                                scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
+                                userData: cleanUserData
+                            };
+                        }),
+                        wires: wires.map(wire => ({
+                            id: wire.userData.id,
+                            fromPin: wire.userData.fromPin,
+                            toPin: wire.userData.toPin,
+                            color: wire.userData.color
+                        })),
+                        wireConnections: wireConnections,
+                        arduinoCode: getEditorInstance() ? getEditorInstance().getValue() : ''
+                    };
+
+                    localStorage.setItem('gamewise_board_state', JSON.stringify(state));
+                    console.log('✅ State saved to localStorage');
+                } catch (error) {
+                    console.error('❌ Error saving state:', error);
+                }
+            }
+
+            function loadStateFromLocalStorage() {
+                try {
+                    const savedState = localStorage.getItem('gamewise_board_state');
+                    if (!savedState) {
+                        console.log('No saved state found');
+                        return false;
+                    }
+
+                    const state = JSON.parse(savedState);
+
+                    // Clear current scene
+                    clearScene();
+
+                    // Restore components
+                    state.components.forEach(compData => {
+                        let comp = null;
+
+                        if (compData.type === 'BREADBOARD') {
+                            // Spawn breadboard
+                            loadingOverlay.classList.remove("hidden");
+                            const breadboardLoader = new GLTFLoader();
+                            breadboardLoader.load('/Breadboard.glb', (gltf) => {
+                                const bb = gltf.scene;
+                                breadboard = bb;
+
+                                bb.position.set(compData.position.x, compData.position.y, compData.position.z);
+                                bb.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                                bb.scale.set(compData.scale.x, compData.scale.y, compData.scale.z);
+                                bb.userData = compData.userData;
+
+                                scene.add(bb);
+                                components.push(bb);
+
+                                // Detect breadboard pins
+                                bb.traverse((obj) => {
+                                    if (obj.type === "Object3D" && (obj.name.startsWith("BB_") || obj.name.includes("GND") || obj.name.includes("VCC"))) {
+                                        obj.userData.isPin = true;
+
+                                        const helper = new THREE.Mesh(
+                                            new THREE.SphereGeometry(0.03),
+                                            new THREE.MeshBasicMaterial({ visible: false })
+                                        );
+                                        obj.add(helper);
+
+                                        const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+                                        const ringMat = new THREE.MeshBasicMaterial({
+                                            color: 0x000000,
+                                            visible: false,
+                                            transparent: true
+                                        });
+                                        const ring = new THREE.Mesh(ringGeo, ringMat);
+                                        ring.rotation.x = Math.PI / 2;
+                                        obj.add(ring);
+
+                                        pinObjects.push(obj);
+                                    }
+                                });
+
+                                // Apply materials
+                                bb.traverse((child) => {
+                                    if (child instanceof THREE.Mesh && child.material) {
+                                        const materials = Array.isArray(child.material) ? child.material : [child.material];
+                                        child.material = materials.map((mat) => {
+                                            if (mat.isMeshStandardMaterial) {
+                                                mat.roughness = 1;
+                                                mat.metalness = 1;
+                                                mat.envMapIntensity = 1;
+                                                mat.needsUpdate = true;
+                                            }
+                                            return mat;
+                                        });
+                                        if (child.material.length === 1) {
+                                            child.material = child.material[0];
+                                        }
+                                    }
+                                });
+
+                                createBreadboardIcon(bb);
+                                loadingOverlay.classList.add("hidden");
+                                moveBoardBtn.style.display = "block";
+
+                                console.log('Breadboard loaded, restoring wires...');
+                                // Restore wires after breadboard is loaded
+                                setTimeout(() => {
+                                    if (state.wires && state.wires.length > 0) {
+                                        state.wires.forEach(wireData => {
+                                            const fromPin = pinObjects.find(p => p.name === wireData.fromPin);
+                                            const toPin = pinObjects.find(p => p.name === wireData.toPin);
+
+                                            if (fromPin && toPin) {
+                                                drawWire(fromPin, toPin, wireData.color);
+                                                console.log(`Wire restored: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                            } else {
+                                                console.warn(`Could not restore wire: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                            }
+                                        });
+
+                                        if (state.wireConnections) {
+                                            // Clear and repopulate without breaking reference
+                                            wireConnections.length = 0;
+                                            state.wireConnections.forEach(wc => wireConnections.push(wc));
+                                            console.log('✅ Wire connections restored:', wireConnections.length);
+                                        }
+                                    }
+                                }, 800);
+                            });
+                        }
+                        else if (compData.type === 'LED') {
+                            comp = createLEDPlaceholder();
+                            comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                            comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                            comp.userData = compData.userData;
+
+                            scene.add(comp);
+                            components.push(comp);
+
+                            // Restore LED pin highlights if it was snapped
+                            if (compData.userData.snappedPins) {
+                                setTimeout(() => {
+                                    const longPin = pinObjects.find(p => p.name === compData.userData.snappedPins.long);
+                                    const shortPin = pinObjects.find(p => p.name === compData.userData.snappedPins.short);
+
+                                    if (longPin && longPin.children && longPin.children[1]) {
+                                        longPin.children[1].material.color.set(0x000000);
+                                        longPin.children[1].material.visible = true;
+                                    }
+                                    if (shortPin && shortPin.children && shortPin.children[1]) {
+                                        shortPin.children[1].material.color.set(0x000000);
+                                        shortPin.children[1].material.visible = true;
+                                    }
+                                    console.log(`LED snapping restored: ${compData.userData.snappedPins.long} & ${compData.userData.snappedPins.short}`);
+                                }, 1000);
+                            }
+                        }
+                        else if (compData.type === 'BUTTON') {
+                            comp = createButtonPlaceholder();
+                            comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                            comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                            comp.userData = compData.userData;
+
+                            scene.add(comp);
+                            components.push(comp);
+
+                            // Restore BUTTON pin highlights if it was snapped
+                            if (compData.userData.snappedPins && Array.isArray(compData.userData.snappedPins)) {
+                                setTimeout(() => {
+                                    compData.userData.snappedPins.forEach(pinName => {
+                                        const pin = pinObjects.find(p => p.name === pinName);
+                                        if (pin && pin.children && pin.children[1]) {
+                                            pin.children[1].material.color.set(0x000000);
+                                            pin.children[1].material.visible = true;
+                                        }
+                                    });
+                                    console.log(`Button snapping restored: ${compData.userData.snappedPins.length} pins`);
+                                }, 1000);
+                            }
+
+                            console.log('Button restored at', comp.position);
+                        }
+                        else if (compData.type === 'RESISTOR') {
+                            comp = createResistorPlaceholder();
+                            comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                            comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                            comp.userData = compData.userData;
+
+                            scene.add(comp);
+                            components.push(comp);
+                        }
+                    });
+
+                    // Restore Arduino code
+                    const editor = getEditorInstance();
+                    if (state.arduinoCode && editor) {
+                        editor.setValue(state.arduinoCode);
+                    }
+
+                    console.log('✅ State loaded from localStorage');
+                    return true;
+                } catch (error) {
+                    console.error('❌ Error loading state:', error);
+                    return false;
+                }
+            }
+
+
+            function clearScene() {
+                // Remove all components
+                components.forEach(comp => {
+                    scene.remove(comp);
+                });
+                components = [];
+
+                // Remove all wires
+                wires.forEach(wire => {
+                    if (wire.userData.fromHelper) scene.remove(wire.userData.fromHelper);
+                    if (wire.userData.toHelper) scene.remove(wire.userData.toHelper);
+                    scene.remove(wire);
+                });
+                wires = [];
+                wireConnections = [];
+
+                // Clear ONLY breadboard pins, keep Arduino pins
+                pinObjects = pinObjects.filter(pin => {
+                    // Keep pins that belong to Arduino (start with "Pin_")
+                    return pin.name && pin.name.startsWith("Pin_");
+                });
+
+                // Reset breadboard
+                breadboard = null;
+                moveBoardBtn.style.display = "none";
+
+                console.log('Scene cleared, Arduino pins preserved');
+            }
+
+
+            // Export for manual save/load buttons (optional)
+            window.saveState = saveStateToLocalStorage;
+            window.loadState = loadStateFromLocalStorage;
+            window.clearState = () => {
+                localStorage.removeItem('gamewise_board_state');
+                clearScene();
+                console.log('✅ State cleared');
             };
-            setTimeout(trySetCode, 1000);
-        }
-        // Update window references after loading
-        window.components = components;
-        window.wireConnections = wireConnections;
-        console.log('🔄 Window references updated:', {
-            components: window.components.length,
-            wireConnections: window.wireConnections.length
-        });
-    },
-    // Clear callback
-    () => {
-        clearScene();
-    }
-);
-// Initialize button animation
-//initButtonAnimation();
 
-// ===== MANUAL SNAP FEATURE (A key) =====
-// ... rest of your existing code ...
+            initMenuBar(
+                // Save callback - returns current state
+                () => {
+                    const state = {
+                        components: components.map(comp => {
+                            // Clean userData to avoid circular references
+                            const cleanUserData = {
+                                type: comp.userData.type,
+                                snappedPins: comp.userData.snappedPins,
+                                // Don't save the 'pins' object as it contains Three.js object references
+                            };
 
-// ===== CONNECTION INFO CONSOLE =====
+                            return {
+                                type: comp.userData.type,
+                                position: { x: comp.position.x, y: comp.position.y, z: comp.position.z },
+                                rotation: { x: comp.rotation.x, y: comp.rotation.y, z: comp.rotation.z },
+                                scale: { x: comp.scale.x, y: comp.scale.y, z: comp.scale.z },
+                                userData: cleanUserData
+                            };
+                        }),
+                        wires: wires.map(wire => ({
+                            id: wire.userData.id,
+                            fromPin: wire.userData.fromPin,
+                            toPin: wire.userData.toPin,
+                            color: wire.userData.color
+                        })),
+                        wireConnections: wireConnections,
+                        arduinoCode: getEditorInstance() ? getEditorInstance().getValue() : ''
+                    };
+                    return state;
+                },
+                // Load callback - loads state from file
+                // Load callback - loads state from file
+                (state) => {
+                    console.log('Loading state:', state);
+                    clearScene();
 
-const connectionConsole = document.getElementById('connectionInfoConsole');
-const connectionToggleBtn = document.getElementById('connectionToggleBtn');
-const connectionLog = document.getElementById('connectionLog');
+                    let breadboardLoaded = false;
 
-let isConnectionConsoleOpen = false;
+                    // Restore components
+                    state.components.forEach(compData => {
+                        let comp = null;
 
-// Toggle console
-connectionToggleBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    isConnectionConsoleOpen = !isConnectionConsoleOpen;
-    connectionConsole.classList.toggle('open', isConnectionConsoleOpen);
-});
+                        if (compData.type === 'BREADBOARD') {
+                            breadboardLoaded = true;
+                            const breadboardLoader = new GLTFLoader();
+                            breadboardLoader.load('/Breadboard.glb', (gltf) => {
+                                const bb = gltf.scene;
+                                breadboard = bb;
 
-// Also toggle when clicking header
-document.querySelector('.connection-header').addEventListener('click', () => {
-    isConnectionConsoleOpen = !isConnectionConsoleOpen;
-    connectionConsole.classList.toggle('open', isConnectionConsoleOpen);
-});
+                                bb.position.set(compData.position.x, compData.position.y, compData.position.z);
+                                bb.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                                bb.scale.set(compData.scale.x, compData.scale.y, compData.scale.z);
+                                bb.userData = compData.userData;
 
-// Tab switching functionality
-const connectionTabs = document.querySelectorAll('.connection-tab');
-connectionTabs.forEach(tab => {
-    tab.addEventListener('click', (e) => {
-        e.stopPropagation();
+                                scene.add(bb);
+                                components.push(bb);
 
-        // Remove active class from all tabs
-        connectionTabs.forEach(t => t.classList.remove('active'));
+                                bb.traverse((obj) => {
+                                    if (obj.type === "Object3D" && (obj.name.startsWith("BB_") || obj.name.includes("GND") || obj.name.includes("VCC"))) {
+                                        obj.userData.isPin = true;
 
-        // Add active class to clicked tab
-        tab.classList.add('active');
+                                        const helper = new THREE.Mesh(
+                                            new THREE.SphereGeometry(0.03),
+                                            new THREE.MeshBasicMaterial({ visible: false })
+                                        );
+                                        obj.add(helper);
 
-        // Update active tab data attribute
-        const tabType = tab.dataset.tab;
-        connectionLog.dataset.activeTab = tabType;
-    });
-});
+                                        const ringGeo = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
+                                        const ringMat = new THREE.MeshBasicMaterial({
+                                            color: 0x000000,
+                                            visible: false,
+                                            transparent: true
+                                        });
+                                        const ring = new THREE.Mesh(ringGeo, ringMat);
+                                        ring.rotation.x = Math.PI / 2;
+                                        obj.add(ring);
 
-// Log connection info
-function logConnection(message, type = 'info') {
-    const timestamp = new Date().toLocaleTimeString();
-    const entry = document.createElement('div');
-    entry.className = `connection-log-entry ${type}`;
-    entry.innerHTML = `
+                                        pinObjects.push(obj);
+                                    }
+                                });
+
+                                bb.traverse((child) => {
+                                    if (child instanceof THREE.Mesh && child.material) {
+                                        const materials = Array.isArray(child.material) ? child.material : [child.material];
+                                        child.material = materials.map((mat) => {
+                                            if (mat.isMeshStandardMaterial) {
+                                                mat.roughness = 1;
+                                                mat.metalness = 1;
+                                                mat.envMapIntensity = 1;
+                                                mat.needsUpdate = true;
+                                            }
+                                            return mat;
+                                        });
+                                        if (child.material.length === 1) {
+                                            child.material = child.material[0];
+                                        }
+                                    }
+                                });
+
+                                createBreadboardIcon(bb);
+                                moveBoardBtn.style.display = "block";
+
+                                console.log('Breadboard loaded, restoring wires...');
+                                // Restore wires after breadboard is loaded
+                                setTimeout(() => {
+                                    if (state.wires && state.wires.length > 0) {
+                                        state.wires.forEach(wireData => {
+                                            const fromPin = pinObjects.find(p => p.name === wireData.fromPin);
+                                            const toPin = pinObjects.find(p => p.name === wireData.toPin);
+
+                                            if (fromPin && toPin) {
+                                                drawWire(fromPin, toPin, wireData.color);
+                                                console.log(`Wire restored: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                            } else {
+                                                console.warn(`Could not restore wire: ${wireData.fromPin} -> ${wireData.toPin}`);
+                                            }
+                                        });
+
+                                        if (state.wireConnections) {
+                                            // Clear and repopulate without breaking reference
+                                            wireConnections.length = 0;
+                                            state.wireConnections.forEach(wc => wireConnections.push(wc));
+                                            console.log('✅ Wire connections restored:', wireConnections.length);
+                                        }
+                                    }
+                                }, 800);
+                            });
+                        }
+                        else if (compData.type === 'LED') {
+                            comp = createLEDPlaceholder();
+                            comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                            comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                            comp.userData = compData.userData;
+
+                            scene.add(comp);
+                            components.push(comp);
+
+                            // Restore LED pin highlights if it was snapped
+                            if (compData.userData.snappedPins) {
+                                setTimeout(() => {
+                                    const longPin = pinObjects.find(p => p.name === compData.userData.snappedPins.long);
+                                    const shortPin = pinObjects.find(p => p.name === compData.userData.snappedPins.short);
+
+                                    if (longPin && longPin.children && longPin.children[1]) {
+                                        longPin.children[1].material.color.set(0x000000);
+                                        longPin.children[1].material.visible = true;
+                                    }
+                                    if (shortPin && shortPin.children && shortPin.children[1]) {
+                                        shortPin.children[1].material.color.set(0x000000);
+                                        shortPin.children[1].material.visible = true;
+                                    }
+                                    console.log(`LED snapping restored: ${compData.userData.snappedPins.long} & ${compData.userData.snappedPins.short}`);
+                                }, 1000);
+                            }
+
+                            console.log('LED restored at', comp.position);
+                        }
+                        else if (compData.type === 'BUTTON') {
+                            comp = createButtonPlaceholder();
+                            comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                            comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                            comp.userData = compData.userData;
+
+                            scene.add(comp);
+                            components.push(comp);
+
+                            // Restore BUTTON pin highlights if it was snapped
+                            if (compData.userData.snappedPins && Array.isArray(compData.userData.snappedPins)) {
+                                setTimeout(() => {
+                                    compData.userData.snappedPins.forEach(pinName => {
+                                        const pin = pinObjects.find(p => p.name === pinName);
+                                        if (pin && pin.children && pin.children[1]) {
+                                            pin.children[1].material.color.set(0x000000);
+                                            pin.children[1].material.visible = true;
+                                        }
+                                    });
+                                    console.log(`Button snapping restored: ${compData.userData.snappedPins.length} pins`);
+                                }, 1000);
+                            }
+                        }
+                        else if (compData.type === 'RESISTOR') {
+                            comp = createResistorPlaceholder();
+                            comp.position.set(compData.position.x, compData.position.y, compData.position.z);
+                            comp.rotation.set(compData.rotation.x, compData.rotation.y, compData.rotation.z);
+                            comp.userData = compData.userData;
+
+                            scene.add(comp);
+                            components.push(comp);
+                            console.log('Resistor restored at', comp.position);
+                        }
+                    });
+
+                    // Restore Arduino code - wait for editor to be ready
+                    if (state.arduinoCode) {
+                        const trySetCode = () => {
+                            const editor = getEditorInstance();
+                            if (editor) {
+                                editor.setValue(state.arduinoCode);
+                                console.log('✅ Arduino code restored');
+                            } else {
+                                // Editor not ready yet, try again
+                                setTimeout(trySetCode, 500);
+                            }
+                        };
+                        setTimeout(trySetCode, 1000);
+                    }
+                    // Update window references after loading
+                    window.components = components;
+                    window.wireConnections = wireConnections;
+                    console.log('🔄 Window references updated:', {
+                        components: window.components.length,
+                        wireConnections: window.wireConnections.length
+                    });
+                },
+                // Clear callback
+                () => {
+                    clearScene();
+                }
+            );
+            // Initialize button animation
+            //initButtonAnimation();
+
+            // ===== MANUAL SNAP FEATURE (A key) =====
+            // ... rest of your existing code ...
+
+            // ===== CONNECTION INFO CONSOLE =====
+
+            const connectionConsole = document.getElementById('connectionInfoConsole');
+            const connectionToggleBtn = document.getElementById('connectionToggleBtn');
+            const connectionLog = document.getElementById('connectionLog');
+
+            let isConnectionConsoleOpen = false;
+
+            // Toggle console
+            connectionToggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                isConnectionConsoleOpen = !isConnectionConsoleOpen;
+                connectionConsole.classList.toggle('open', isConnectionConsoleOpen);
+            });
+
+            // Also toggle when clicking header
+            document.querySelector('.connection-header').addEventListener('click', () => {
+                isConnectionConsoleOpen = !isConnectionConsoleOpen;
+                connectionConsole.classList.toggle('open', isConnectionConsoleOpen);
+            });
+
+            // Tab switching functionality
+            const connectionTabs = document.querySelectorAll('.connection-tab');
+            connectionTabs.forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    e.stopPropagation();
+
+                    // Remove active class from all tabs
+                    connectionTabs.forEach(t => t.classList.remove('active'));
+
+                    // Add active class to clicked tab
+                    tab.classList.add('active');
+
+                    // Update active tab data attribute
+                    const tabType = tab.dataset.tab;
+                    connectionLog.dataset.activeTab = tabType;
+                });
+            });
+
+            // Log connection info
+            function logConnection(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = `connection-log-entry ${type}`;
+                entry.innerHTML = `
         <span class="timestamp">[${timestamp}]</span>
         <span class="message">${message}</span>
     `;
-    connectionLog.appendChild(entry);
+                connectionLog.appendChild(entry);
 
-    // Auto-scroll to bottom
-    connectionLog.scrollTop = connectionLog.scrollHeight;
+                // Auto-scroll to bottom
+                connectionLog.scrollTop = connectionLog.scrollHeight;
 
-    // Limit log entries to 100
-    while (connectionLog.children.length > 100) {
-        connectionLog.removeChild(connectionLog.firstChild);
-    }
-}
+                // Limit log entries to 100
+                while (connectionLog.children.length > 100) {
+                    connectionLog.removeChild(connectionLog.firstChild);
+                }
+            }
 
-// Clear log function (optional)
-function clearConnectionLog() {
-    connectionLog.innerHTML = '';
-    logConnection('Connection log cleared', 'info');
-}
+            // Clear log function (optional)
+            function clearConnectionLog() {
+                connectionLog.innerHTML = '';
+                logConnection('Connection log cleared', 'info');
+            }
 
-// Export for use in other parts of the code
-window.logConnection = logConnection;
-window.clearConnectionLog = clearConnectionLog;
+            // Export for use in other parts of the code
+            window.logConnection = logConnection;
+            window.clearConnectionLog = clearConnectionLog;
 
-const manualSnapModal = document.getElementById('manualSnapModal');
-const modalTitle = document.getElementById('modalTitle');
-const modalSubtitle = document.getElementById('modalSubtitle');
-const modalInputs = document.getElementById('modalInputs');
-const modalSnapBtn = document.getElementById('modalSnapBtn');
-const modalCancelBtn = document.getElementById('modalCancelBtn');
-const modalError = document.getElementById('modalError');
+            const manualSnapModal = document.getElementById('manualSnapModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalSubtitle = document.getElementById('modalSubtitle');
+            const modalInputs = document.getElementById('modalInputs');
+            const modalSnapBtn = document.getElementById('modalSnapBtn');
+            const modalCancelBtn = document.getElementById('modalCancelBtn');
+            const modalError = document.getElementById('modalError');
 
-let currentSnapComponent = null;
+            let currentSnapComponent = null;
 
-// A key to open manual snap modal
-window.addEventListener('keydown', (e) => {
-    if (e.key === 'a' || e.key === 'A') {
-        if (selectedComponent && (selectedComponent.userData.type === 'LED' || selectedComponent.userData.type === 'BUTTON')) {
-            openManualSnapModal(selectedComponent);
-        }
-    }
-});
+            // A key to open manual snap modal
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'a' || e.key === 'A') {
+                    if (selectedComponent && (selectedComponent.userData.type === 'LED' || selectedComponent.userData.type === 'BUTTON')) {
+                        openManualSnapModal(selectedComponent);
+                    }
+                }
+            });
 
-function openManualSnapModal(component) {
-    // Check if breadboard exists
-    if (!breadboard) {
-        alert('⚠️ Breadboard not spawned! Please add a breadboard first.');
-        return;
-    }
+            function openManualSnapModal(component) {
+                // Check if breadboard exists
+                if (!breadboard) {
+                    alert('⚠️ Breadboard not spawned! Please add a breadboard first.');
+                    return;
+                }
 
-    currentSnapComponent = component;
-    const type = component.userData.type;
+                currentSnapComponent = component;
+                const type = component.userData.type;
 
-    // Set title
-    modalTitle.textContent = `Snap ${type} to Breadboard Pins`;
+                // Set title
+                modalTitle.textContent = `Snap ${type} to Breadboard Pins`;
 
-    // Create input fields based on component type
-    modalInputs.innerHTML = '';
+                // Create input fields based on component type
+                modalInputs.innerHTML = '';
 
-    if (type === 'LED') {
-        modalInputs.innerHTML = `
+                if (type === 'LED') {
+                    modalInputs.innerHTML = `
             <div class="modal-input-group">
                 <label>Anode (Long Leg) Pin:</label>
                 <input type="text" id="input_anode" placeholder="e.g., A1, B5, VCC1" />
@@ -3993,8 +4011,8 @@ function openManualSnapModal(component) {
                 <input type="text" id="input_cathode" placeholder="e.g., A2, GND1" />
             </div>
         `;
-    } else if (type === 'BUTTON') {
-        modalInputs.innerHTML = `
+                } else if (type === 'BUTTON') {
+                    modalInputs.innerHTML = `
             <div class="modal-input-group">
                 <label>Pin 1 (Button_Pin_1):</label>
                 <input type="text" id="input_pin1" placeholder="e.g., A1, B5" />
@@ -4004,151 +4022,152 @@ function openManualSnapModal(component) {
                 <input type="text" id="input_pin2" placeholder="e.g., A3, B7" />
             </div>
         `;
-    }
+                }
 
-    modalError.style.display = 'none';
-    manualSnapModal.style.display = 'flex';
+                modalError.style.display = 'none';
+                manualSnapModal.style.display = 'flex';
 
-    // Focus first input
-    setTimeout(() => {
-        const firstInput = modalInputs.querySelector('input');
-        if (firstInput) firstInput.focus();
-    }, 100);
-}
+                // Focus first input
+                setTimeout(() => {
+                    const firstInput = modalInputs.querySelector('input');
+                    if (firstInput) firstInput.focus();
+                }, 100);
+            }
 
-// Cancel button
-modalCancelBtn.addEventListener('click', () => {
-    manualSnapModal.style.display = 'none';
-    currentSnapComponent = null;
-});
+            // Cancel button
+            modalCancelBtn.addEventListener('click', () => {
+                manualSnapModal.style.display = 'none';
+                currentSnapComponent = null;
+            });
 
-// Snap button
-modalSnapBtn.addEventListener('click', () => {
-    if (!currentSnapComponent) return;
+            // Snap button
+            modalSnapBtn.addEventListener('click', () => {
+                if (!currentSnapComponent) return;
 
-    const type = currentSnapComponent.userData.type;
-    const pinNames = [];
-    const inputs = modalInputs.querySelectorAll('input');
+                const type = currentSnapComponent.userData.type;
+                const pinNames = [];
+                const inputs = modalInputs.querySelectorAll('input');
 
-    // Collect pin names and add BB_ prefix
-    inputs.forEach(input => {
-        let pinName = input.value.trim().toUpperCase();
-        // Auto-add BB_ prefix if not already present
-        if (!pinName.startsWith('BB_') && !pinName.startsWith('PIN_')) {
-            pinName = 'BB_' + pinName;
-        }
-        pinNames.push(pinName);
-    });
+                // Collect pin names and add BB_ prefix
+                inputs.forEach(input => {
+                    let pinName = input.value.trim().toUpperCase();
+                    // Auto-add BB_ prefix if not already present
+                    if (!pinName.startsWith('BB_') && !pinName.startsWith('PIN_')) {
+                        pinName = 'BB_' + pinName;
+                    }
+                    pinNames.push(pinName);
+                });
 
-    // Validate pin names
-    const validPins = [];
-    for (const pinName of pinNames) {
-        if (!pinName) {
-            showModalError('Please fill in all pin fields');
-            return;
-        }
+                // Validate pin names
+                const validPins = [];
+                for (const pinName of pinNames) {
+                    if (!pinName) {
+                        showModalError('Please fill in all pin fields');
+                        return;
+                    }
 
-        // Find the pin in pinObjects
-        const pin = pinObjects.find(p => p.name === pinName);
-        if (!pin) {
-            showModalError(`Pin "${pinName}" not found. Check breadboard pin names.`);
-            return;
-        }
+                    // Find the pin in pinObjects
+                    const pin = pinObjects.find(p => p.name === pinName);
+                    if (!pin) {
+                        showModalError(`Pin "${pinName}" not found. Check breadboard pin names.`);
+                        return;
+                    }
 
-        // Check if pin belongs to breadboard
-        const root = findComponentRoot(pin);
-        if (!root || root.userData.type !== 'BREADBOARD') {
-            showModalError(`Pin "${pinName}" is not a breadboard pin`);
-            return;
-        }
+                    // Check if pin belongs to breadboard
+                    const root = findComponentRoot(pin);
+                    if (!root || root.userData.type !== 'BREADBOARD') {
+                        showModalError(`Pin "${pinName}" is not a breadboard pin`);
+                        return;
+                    }
 
-        validPins.push(pin);
-    }
+                    validPins.push(pin);
+                }
 
-    // All pins valid - snap the component
-    if (type === 'LED') {
-        manualSnapLED(currentSnapComponent, validPins[0], validPins[1]);
-    } else if (type === 'BUTTON') {
-        manualSnapButton(currentSnapComponent, validPins);
-    }
+                // All pins valid - snap the component
+                if (type === 'LED') {
+                    manualSnapLED(currentSnapComponent, validPins[0], validPins[1]);
+                } else if (type === 'BUTTON') {
+                    manualSnapButton(currentSnapComponent, validPins);
+                }
 
-    manualSnapModal.style.display = 'none';
-    currentSnapComponent = null;
-});
+                manualSnapModal.style.display = 'none';
+                currentSnapComponent = null;
+            });
 
-function showModalError(message) {
-    modalError.textContent = message;
-    modalError.style.display = 'block';
-}
+            function showModalError(message) {
+                modalError.textContent = message;
+                modalError.style.display = 'block';
+            }
 
-function manualSnapLED(led, anodePin, cathodePin) {
-    const p1 = new THREE.Vector3();
-    const p2 = new THREE.Vector3();
-    anodePin.getWorldPosition(p1);
-    cathodePin.getWorldPosition(p2);
+            function manualSnapLED(led, anodePin, cathodePin) {
+                const p1 = new THREE.Vector3();
+                const p2 = new THREE.Vector3();
+                anodePin.getWorldPosition(p1);
+                cathodePin.getWorldPosition(p2);
 
-    // Position LED at midpoint
-    const midpoint = p1.clone().lerp(p2, 0.5);
-    led.position.copy(midpoint);
+                // Position LED at midpoint
+                const midpoint = p1.clone().lerp(p2, 0.5);
+                led.position.copy(midpoint);
 
-    // Calculate rotation to align with pins
-    const direction = new THREE.Vector3().subVectors(p2, p1);
-    const angle = Math.atan2(direction.x, direction.z);
-    led.rotation.y = angle;
+                // Calculate rotation to align with pins
+                const direction = new THREE.Vector3().subVectors(p2, p1);
+                const angle = Math.atan2(direction.x, direction.z);
+                led.rotation.y = angle;
 
-    // Store snapped pins
-    led.userData.snappedPins = {
-        long: anodePin.name,
-        short: cathodePin.name
-    };
+                // Store snapped pins
+                led.userData.snappedPins = {
+                    long: anodePin.name,
+                    short: cathodePin.name
+                };
 
-    // Highlight pins
-    if (anodePin.children && anodePin.children[1]) {
-        anodePin.children[1].material.color.set(0x000000);
-        anodePin.children[1].material.visible = true;
-    }
-    if (cathodePin.children && cathodePin.children[1]) {
-        cathodePin.children[1].material.color.set(0x000000);
-        cathodePin.children[1].material.visible = true;
-    }
+                // Highlight pins
+                if (anodePin.children && anodePin.children[1]) {
+                    anodePin.children[1].material.color.set(0x000000);
+                    anodePin.children[1].material.visible = true;
+                }
+                if (cathodePin.children && cathodePin.children[1]) {
+                    cathodePin.children[1].material.color.set(0x000000);
+                    cathodePin.children[1].material.visible = true;
+                }
 
-    console.log(`✅ LED manually snapped to ${anodePin.name} & ${cathodePin.name}`);
+                console.log(`✅ LED manually snapped to ${anodePin.name} & ${cathodePin.name}`);
 
-    // Log manual LED snapping
-    logConnection(
-        `📍 <span class="component-name">LED</span> manually snapped: Anode (long leg) → <span class="pin-info">${anodePin.name}</span>, Cathode (short leg) → <span class="pin-info">${cathodePin.name}</span>`,
-        'snap'
-    );
-}
+                // Log manual LED snapping
+                logConnection(
+                    `📍 <span class="component-name">LED</span> manually snapped: Anode (long leg) → <span class="pin-info">${anodePin.name}</span>, Cathode (short leg) → <span class="pin-info">${cathodePin.name}</span>`,
+                    'snap'
+                );
+            }
 
 
-function manualSnapButton(button, pins) {
-    // Calculate average position
-    const avgPos = new THREE.Vector3();
-    pins.forEach(pin => {
-        const pos = new THREE.Vector3();
-        pin.getWorldPosition(pos);
-        avgPos.add(pos);
-    });
-    avgPos.divideScalar(pins.length);
+            function manualSnapButton(button, pins) {
+                // Calculate average position
+                const avgPos = new THREE.Vector3();
+                pins.forEach(pin => {
+                    const pos = new THREE.Vector3();
+                    pin.getWorldPosition(pos);
+                    avgPos.add(pos);
+                });
+                avgPos.divideScalar(pins.length);
 
-    // Snap button
-    button.position.copy(avgPos);
+                // Snap button
+                button.position.copy(avgPos);
 
-    // Store snapped pins
-    button.userData.snappedPins = pins.map(p => p.name);
+                // Store snapped pins
+                button.userData.snappedPins = pins.map(p => p.name);
 
-    // Highlight pins
-    pins.forEach(pin => {
-        if (pin.children && pin.children[1]) {
-            pin.children[1].material.color.set(0x000000);
-            pin.children[1].material.visible = true;
-        }
-    });
+                // Highlight pins
+                pins.forEach(pin => {
+                    if (pin.children && pin.children[1]) {
+                        pin.children[1].material.color.set(0x000000);
+                        pin.children[1].material.visible = true;
+                    }
 
-    console.log(`✅ Button manually snapped to ${pins.length} pins:`, button.userData.snappedPins);
 
-    // Log manual button snapping
+                    console.log(`✅ Button manually snapped to ${pins.length} pins:`, button.userData.snappedPins);
+                });
+
+// Log manual button snapping
     const pinNames = pins.map(p => `<span class="pin-info">${p.name}</span>`).join(', ');
     logConnection(
         `📍 <span class="component-name">BUTTON</span> manually snapped to pins: ${pinNames}`,

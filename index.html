@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/menubar.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap"
     rel="stylesheet">
   <style>
@@ -1458,11 +1459,11 @@
     }
 
     /* Hide entries based on active tab */
-    .connection-log[data-active-tab="wires"] .connection-log-entry:not(.wire) {
+    .connection-log[data-active-tab="wires"] .connection-log-entry:not(.wire):not(.delete) {
       display: none;
     }
 
-    .connection-log[data-active-tab="components"] .connection-log-entry:not(.snap):not(.component) {
+    .connection-log[data-active-tab="components"] .connection-log-entry:not(.snap):not(.component):not(.delete) {
       display: none;
     }
   </style>
