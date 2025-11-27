@@ -1541,7 +1541,9 @@ window.addEventListener('pointerdown', (e) => {
 
                             // Clear the snapped pins reference
                             delete rootComponent.userData.snappedPins;
-
+                            // Remove from breadboard and add back to scene
+                            breadboard.remove(rootComponent);
+                            scene.add(rootComponent);
                             // Setup dragging plane
                             plane.setFromNormalAndCoplanarPoint(
                                 camera.getWorldDirection(new THREE.Vector3()).clone().negate(),
@@ -4263,7 +4265,7 @@ function handleComponentSnap() {
 
 function showModalError(message) {
     modalError.textContent = message;
-    modalError.style.display = 'block';
+modalError.style.display = 'block';
 }
 
 function manualSnapLED(led, anodePin, cathodePin) {
@@ -4272,14 +4274,12 @@ function manualSnapLED(led, anodePin, cathodePin) {
     anodePin.getWorldPosition(p1);
     cathodePin.getWorldPosition(p2);
 
-    // Position LED at midpoint
+    // Position LED at midpoint (in world space first)
     const midpoint = p1.clone().lerp(p2, 0.5);
-    led.position.copy(midpoint);
 
     // Calculate rotation to align with pins
     const direction = new THREE.Vector3().subVectors(p2, p1);
     const angle = Math.atan2(direction.x, direction.z);
-    led.rotation.y = angle;
 
     // Store snapped pins
     led.userData.snappedPins = {
@@ -4287,6 +4287,23 @@ function manualSnapLED(led, anodePin, cathodePin) {
         short: cathodePin.name
     };
 
+    // Attach LED to breadboard so it moves with it
+    scene.remove(led);
+    breadboard.add(led);
+
+    // Convert world position to local position relative to breadboard
+    breadboard.worldToLocal(midpoint);
+    led.position.copy(midpoint);
+    led.rotation.y = angle;
+
+    // Store snapped pins
+    led.userData.snappedPins = {
+        long: anodePin.name,
+        short: cathodePin.name
+    };
+    // Attach LED to breadboard so it moves with it
+    scene.remove(led);
+    breadboard.add(led);
     // Highlight pins
     if (anodePin.children && anodePin.children[1]) {
         anodePin.children[1].material.color.set(0x000000);
@@ -4308,7 +4325,7 @@ function manualSnapLED(led, anodePin, cathodePin) {
 
 
 function manualSnapButton(button, pins) {
-    // Calculate average position
+    // Calculate average position in world space
     const avgPos = new THREE.Vector3();
     pins.forEach(pin => {
         const pos = new THREE.Vector3();
@@ -4317,12 +4334,22 @@ function manualSnapButton(button, pins) {
     });
     avgPos.divideScalar(pins.length);
 
-    // Snap button
+    // Store snapped pins
+    button.userData.snappedPins = pins.map(p => p.name);
+
+    // Attach button to breadboard so it moves with it
+    scene.remove(button);
+    breadboard.add(button);
+
+    // Convert world position to local position relative to breadboard
+    breadboard.worldToLocal(avgPos);
     button.position.copy(avgPos);
 
     // Store snapped pins
     button.userData.snappedPins = pins.map(p => p.name);
-
+    // Attach button to breadboard so it moves with it
+    scene.remove(button);
+    breadboard.add(button);
     // Highlight pins
     pins.forEach(pin => {
         if (pin.children && pin.children[1]) {
@@ -4442,5 +4469,5 @@ function openWireConnectionModal(fromPin) {
     }, 100);
 
     // Store the from pin for later use
-    modal.dataset.fromPin = fromPin.name;
+    taset.fromPin = fromPin.name;
 }
