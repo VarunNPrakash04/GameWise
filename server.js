@@ -199,8 +199,19 @@ Rules to determine JSON:
 `;
 }
 
+/// Rate limiting variables
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests
+
 /**
- * Verify circuit endpoint
+ * Sleep function for delays
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Verify circuit endpoint with rate limiting and retry logic
  */
 app.post('/api/verify-circuit', async (req, res) => {
   try {
@@ -214,32 +225,71 @@ app.post('/api/verify-circuit', async (req, res) => {
 
     console.log('📝 Verifying circuit with', circuit.components?.length || 0, 'components');
 
+    // Rate limiting - wait if needed
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      console.log(`⏳ Rate limiting: waiting ${waitTime}ms...`);
+      await sleep(waitTime);
+    }
+    lastRequestTime = Date.now();
+
     // Build prompt
     const prompt = buildVerificationPrompt(code, circuit);
 
-    // Get AI response - FIXED: Use gemini-1.5-pro
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    // Retry logic
+    let retries = 3;
+    let lastError;
 
-    // Parse JSON response (remove markdown if present)
-    let jsonText = responseText.trim();
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    while (retries > 0) {
+      try {
+        // Get AI response
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+
+        // Parse JSON response (remove markdown if present)
+        let jsonText = responseText.trim();
+        if (jsonText.startsWith('```json')) {
+          jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        }
+
+        const verification = JSON.parse(jsonText);
+
+        console.log('✅ Verification complete:', verification.message);
+        console.log('📦 Full AI Response:', JSON.stringify(verification, null, 2));
+
+        return res.json(verification);
+
+      } catch (error) {
+        lastError = error;
+
+        // Check if it's a rate limit error
+        if (error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('rate limit')) {
+          retries--;
+          if (retries > 0) {
+            const backoffTime = (4 - retries) * 3000; // 3s, 6s, 9s
+            console.log(`⚠️ Rate limit hit. Retrying in ${backoffTime}ms... (${retries} retries left)`);
+            await sleep(backoffTime);
+            continue;
+          }
+        } else {
+          // Non-rate-limit error, don't retry
+          throw error;
+        }
+      }
     }
 
-    const verification = JSON.parse(jsonText);
-
-    console.log('✅ Verification complete:', verification.message);
-    console.log('📦 Full AI Response:', JSON.stringify(verification, null, 2));
-
-    res.json(verification);
+    // All retries exhausted
+    throw new Error(`Rate limit exceeded after retries: ${lastError.message}`);
 
   } catch (error) {
     console.error('❌ Verification error:', error);
     res.status(500).json({
       error: 'Verification failed',
-      details: error.message
+      details: error.message,
+      suggestion: 'Please wait a few seconds and try again. Gemini API has rate limits.'
     });
   }
 });
